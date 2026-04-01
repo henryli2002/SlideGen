@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /Users/henryli/Desktop/Project/SlideGen/backend/app/routers /Users/henryli/Desktop/Project/SlideGen/backend/app/services /Users/henryli/Desktop/Project/SlideGen/backend/app/schemas /Users/henryli/Desktop/Project/SlideGen/backend/app/prompts /Users/henryli/Desktop/Project/SlideGen/backend/app/templates)",
+      "Bash(mkdir -p /Users/henryli/Desktop/Project/SlideGen/frontend/src/types /Users/henryli/Desktop/Project/SlideGen/frontend/src/hooks /Users/henryli/Desktop/Project/SlideGen/frontend/src/components/slides /Users/henryli/Desktop/Project/SlideGen/frontend/src/styles)",
+      "Bash(npm create:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(cp:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(chmod +x:*)"
+    ]
+  }
+}

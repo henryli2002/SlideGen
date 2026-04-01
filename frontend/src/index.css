@@ -1,0 +1,10 @@
+/* 全局重置，由 App.tsx 的 globalStyle 接管，此文件保持最小化 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
