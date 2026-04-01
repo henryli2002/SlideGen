@@ -1,0 +1,59 @@
+{
+  "presetId": "cover_left_bold",
+  "name": "左对齐封面",
+  "description": "标题左对齐，右侧有装饰色块，适合副标题较长的封面",
+  "category": "cover",
+  "elements": [
+    {
+      "role": "right_accent",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 65, "y": 0, "w": 35, "h": 100,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.1,
+      "zIndex": 0
+    },
+    {
+      "role": "right_accent_dark",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 65, "y": 0, "w": 2, "h": 100,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.6,
+      "zIndex": 1
+    },
+    {
+      "role": "accent_bar",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 5, "y": 17, "w": 6, "h": 1.5,
+      "fillColor": "{{accentColor}}",
+      "zIndex": 2
+    },
+    {
+      "role": "title",
+      "type": "text",
+      "x": 5, "y": 21, "w": 58, "h": 28,
+      "content": "{{title}}",
+      "fontSize": 42,
+      "fontWeight": "bold",
+      "color": "{{titleColor}}",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "zIndex": 3
+    },
+    {
+      "role": "subtitle",
+      "type": "text",
+      "x": 5, "y": 52, "w": 58, "h": 25,
+      "content": "{{subtitle}}",
+      "fontSize": 20,
+      "fontWeight": "normal",
+      "color": "{{bodyColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "lineHeight": 1.5,
+      "zIndex": 3
+    }
+  ]
+}

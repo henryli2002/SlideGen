@@ -1,0 +1,168 @@
+{
+  "presetId": "bullets_card_grid",
+  "name": "卡片网格",
+  "description": "3~4 个并列概念卡片，适合对比展示",
+  "category": "bullets",
+  "elements": [
+    {
+      "role": "accent_bar",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 0, "y": 0, "w": 100, "h": 1.5,
+      "fillColor": "{{accentColor}}",
+      "zIndex": 0
+    },
+    {
+      "role": "title",
+      "type": "text",
+      "x": 5, "y": 3, "w": 90, "h": 16,
+      "content": "{{title}}",
+      "fontSize": 32,
+      "fontWeight": "bold",
+      "color": "{{titleColor}}",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "zIndex": 1
+    },
+    {
+      "role": "card1_bg",
+      "type": "shape",
+      "shape": "rounded-rect",
+      "x": 3, "y": 21, "w": 45, "h": 36,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.1,
+      "borderRadius": 8,
+      "zIndex": 1
+    },
+    {
+      "role": "card1_title",
+      "type": "text",
+      "x": 5, "y": 23, "w": 41, "h": 10,
+      "content": "{{card1_title}}",
+      "fontSize": 20,
+      "fontWeight": "bold",
+      "color": "{{accentColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "zIndex": 2
+    },
+    {
+      "role": "card1_desc",
+      "type": "text",
+      "x": 5, "y": 34, "w": 41, "h": 22,
+      "content": "{{card1_desc}}",
+      "fontSize": 15,
+      "fontWeight": "normal",
+      "color": "{{bodyColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "lineHeight": 1.5,
+      "zIndex": 2
+    },
+    {
+      "role": "card2_bg",
+      "type": "shape",
+      "shape": "rounded-rect",
+      "x": 52, "y": 21, "w": 45, "h": 36,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.1,
+      "borderRadius": 8,
+      "zIndex": 1
+    },
+    {
+      "role": "card2_title",
+      "type": "text",
+      "x": 54, "y": 23, "w": 41, "h": 10,
+      "content": "{{card2_title}}",
+      "fontSize": 20,
+      "fontWeight": "bold",
+      "color": "{{accentColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "zIndex": 2
+    },
+    {
+      "role": "card2_desc",
+      "type": "text",
+      "x": 54, "y": 34, "w": 41, "h": 22,
+      "content": "{{card2_desc}}",
+      "fontSize": 15,
+      "fontWeight": "normal",
+      "color": "{{bodyColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "lineHeight": 1.5,
+      "zIndex": 2
+    },
+    {
+      "role": "card3_bg",
+      "type": "shape",
+      "shape": "rounded-rect",
+      "x": 3, "y": 60, "w": 45, "h": 36,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.1,
+      "borderRadius": 8,
+      "zIndex": 1
+    },
+    {
+      "role": "card3_title",
+      "type": "text",
+      "x": 5, "y": 62, "w": 41, "h": 10,
+      "content": "{{card3_title}}",
+      "fontSize": 20,
+      "fontWeight": "bold",
+      "color": "{{accentColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "zIndex": 2
+    },
+    {
+      "role": "card3_desc",
+      "type": "text",
+      "x": 5, "y": 73, "w": 41, "h": 22,
+      "content": "{{card3_desc}}",
+      "fontSize": 15,
+      "fontWeight": "normal",
+      "color": "{{bodyColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "lineHeight": 1.5,
+      "zIndex": 2
+    },
+    {
+      "role": "card4_bg",
+      "type": "shape",
+      "shape": "rounded-rect",
+      "x": 52, "y": 60, "w": 45, "h": 36,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.1,
+      "borderRadius": 8,
+      "zIndex": 1
+    },
+    {
+      "role": "card4_title",
+      "type": "text",
+      "x": 54, "y": 62, "w": 41, "h": 10,
+      "content": "{{card4_title}}",
+      "fontSize": 20,
+      "fontWeight": "bold",
+      "color": "{{accentColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "zIndex": 2
+    },
+    {
+      "role": "card4_desc",
+      "type": "text",
+      "x": 54, "y": 73, "w": 41, "h": 22,
+      "content": "{{card4_desc}}",
+      "fontSize": 15,
+      "fontWeight": "normal",
+      "color": "{{bodyColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "lineHeight": 1.5,
+      "zIndex": 2
+    }
+  ]
+}

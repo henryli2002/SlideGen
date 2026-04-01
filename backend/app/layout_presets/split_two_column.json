@@ -1,0 +1,98 @@
+{
+  "presetId": "split_two_column",
+  "name": "双栏对比",
+  "description": "左右两栏内容，适合对比或互补展示",
+  "category": "split",
+  "elements": [
+    {
+      "role": "accent_bar",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 0, "y": 0, "w": 100, "h": 1.5,
+      "fillColor": "{{accentColor}}",
+      "zIndex": 0
+    },
+    {
+      "role": "title",
+      "type": "text",
+      "x": 5, "y": 3, "w": 90, "h": 16,
+      "content": "{{title}}",
+      "fontSize": 32,
+      "fontWeight": "bold",
+      "color": "{{titleColor}}",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "zIndex": 1
+    },
+    {
+      "role": "left_bg",
+      "type": "shape",
+      "shape": "rounded-rect",
+      "x": 3, "y": 22, "w": 45, "h": 73,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.1,
+      "borderRadius": 8,
+      "zIndex": 1
+    },
+    {
+      "role": "left_title",
+      "type": "text",
+      "x": 5, "y": 24, "w": 41, "h": 12,
+      "content": "{{left_title}}",
+      "fontSize": 22,
+      "fontWeight": "bold",
+      "color": "{{accentColor}}",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "zIndex": 2
+    },
+    {
+      "role": "left_content",
+      "type": "text",
+      "x": 5, "y": 38, "w": 41, "h": 54,
+      "content": "{{left_content}}",
+      "fontSize": 16,
+      "fontWeight": "normal",
+      "color": "{{bodyColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "lineHeight": 1.6,
+      "zIndex": 2
+    },
+    {
+      "role": "right_bg",
+      "type": "shape",
+      "shape": "rounded-rect",
+      "x": 52, "y": 22, "w": 45, "h": 73,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.05,
+      "borderRadius": 8,
+      "zIndex": 1
+    },
+    {
+      "role": "right_title",
+      "type": "text",
+      "x": 54, "y": 24, "w": 41, "h": 12,
+      "content": "{{right_title}}",
+      "fontSize": 22,
+      "fontWeight": "bold",
+      "color": "{{titleColor}}",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "zIndex": 2
+    },
+    {
+      "role": "right_content",
+      "type": "text",
+      "x": 54, "y": 38, "w": 41, "h": 54,
+      "content": "{{right_content}}",
+      "fontSize": 16,
+      "fontWeight": "normal",
+      "color": "{{bodyColor}}",
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "lineHeight": 1.6,
+      "zIndex": 2
+    }
+  ]
+}

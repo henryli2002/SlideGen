@@ -11,64 +11,87 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Mock 幻灯片数据，未配置真实 API Key 时使用
+# Mock 幻灯片数据，未配置真实 API Key 时使用（覆盖所有 10 种布局）
 MOCK_SLIDES = [
     {
-        "layout": "cover",
+        "layout": "cover_centered",
         "data": {
             "title": "人工智能的未来",
-            "subtitle": "探索 AI 技术如何改变我们的世界与生活方式"
+            "subtitle": "探索 AI 技术如何深刻改变我们的世界与生活方式"
         }
     },
     {
-        "layout": "bullets",
+        "layout": "bullets_icon_list",
         "data": {
-            "title": "AI 的核心技术",
-            "bullets": [
-                "深度学习：模拟人脑神经网络的多层算法结构",
-                "自然语言处理：让机器理解和生成人类语言",
-                "计算机视觉：赋予机器识别和理解图像的能力",
-                "强化学习：通过试错和奖励机制训练智能体"
-            ]
+            "title": "AI 的四大核心技术",
+            "bullet1": "深度学习：模拟人脑神经网络的多层算法结构",
+            "bullet1_icon": "cpu",
+            "bullet2": "自然语言处理：让机器理解和生成人类语言",
+            "bullet2_icon": "book-open",
+            "bullet3": "计算机视觉：赋予机器识别图像与视频的能力",
+            "bullet3_icon": "globe",
+            "bullet4": "强化学习：通过奖惩机制训练自主决策智能体",
+            "bullet4_icon": "target",
+            "bullet5": "",
+            "bullet5_icon": ""
         }
     },
     {
-        "layout": "split",
+        "layout": "stats_three_column",
         "data": {
-            "title": "AI 的机遇与挑战",
-            "leftContent": "机遇：自动化重复性工作、提升医疗诊断精度、加速科学研究、个性化教育体验、智能客服与推荐系统",
-            "rightContent": "挑战：就业结构变化、数据隐私保护、算法偏见与公平性、AI 安全与对齐问题、监管与伦理框架建立"
+            "title": "AI 产业规模一览",
+            "stat1_number": "$1.8T",
+            "stat1_label": "2030 年全球 AI 市场规模预测",
+            "stat2_number": "97M",
+            "stat2_label": "AI 相关新增就业岗位（2025）",
+            "stat3_number": "40%",
+            "stat3_label": "企业生产力平均提升幅度"
         }
     },
     {
-        "layout": "bullets",
+        "layout": "split_two_column",
         "data": {
-            "title": "AI 应用场景",
-            "bullets": [
-                "医疗健康：辅助诊断、药物研发、基因分析",
-                "金融科技：风险评估、欺诈检测、智能投顾",
-                "自动驾驶：感知环境、路径规划、决策控制",
-                "内容创作：文本生成、图像合成、音乐创作",
-                "教育培训：个性化学习路径与智能辅导"
-            ]
+            "title": "机遇与挑战并存",
+            "left_title": "核心机遇",
+            "left_content": "自动化重复性工作、提升医疗诊断精度、加速科学研究发现、个性化教育体验、优化供应链与物流",
+            "right_title": "主要挑战",
+            "right_content": "就业结构深度变革、数据隐私与安全、算法偏见与公平性、AI 对齐问题、监管与伦理框架建立"
         }
     },
     {
-        "layout": "bullets",
+        "layout": "bullets_card_grid",
         "data": {
-            "title": "未来展望",
-            "bullets": [
-                "通用人工智能（AGI）：迈向具备广泛推理能力的 AI",
-                "人机协作：AI 作为人类能力的延伸而非替代",
-                "负责任的 AI：以人为本的设计原则与伦理标准"
-            ]
+            "title": "四大核心应用领域",
+            "card1_title": "医疗健康",
+            "card1_desc": "辅助影像诊断、药物分子设计、基因组学分析，显著提升诊疗效率",
+            "card2_title": "金融科技",
+            "card2_desc": "智能风控、欺诈实时检测、量化交易与个性化理财顾问",
+            "card3_title": "智能制造",
+            "card3_desc": "预测性维护、质量视觉检测、自动化排产与供应链优化",
+            "card4_title": "内容创作",
+            "card4_desc": "文本、图像、音视频生成，重塑媒体与创意产业生产流程"
         }
     },
     {
-        "layout": "cover",
+        "layout": "timeline_horizontal",
+        "data": {
+            "title": "AI 发展里程碑",
+            "point1_time": "2012",
+            "point1_text": "AlexNet 开创深度学习视觉革命",
+            "point2_time": "2017",
+            "point2_text": "Transformer 架构发布，NLP 飞跃",
+            "point3_time": "2022",
+            "point3_text": "ChatGPT 引爆大模型应用浪潮",
+            "point4_time": "2025+",
+            "point4_text": "多模态 Agent 走向生产环境"
+        }
+    },
+    {
+        "layout": "closing_cta",
         "data": {
             "title": "感谢聆听",
-            "subtitle": "让我们共同探索 AI 带来的无限可能，拥抱智能时代的到来"
+            "subtitle": "让我们共同拥抱智能时代，用 AI 创造更大的价值",
+            "cta_text": "立即开始探索"
         }
     }
 ]

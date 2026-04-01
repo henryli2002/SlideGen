@@ -1,0 +1,50 @@
+{
+  "presetId": "cover_centered",
+  "name": "居中封面",
+  "description": "大标题居中，适合开场封面页",
+  "category": "cover",
+  "elements": [
+    {
+      "role": "bg_accent",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 0, "y": 88, "w": 100, "h": 12,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.12,
+      "zIndex": 0
+    },
+    {
+      "role": "accent_line",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 35, "y": 47, "w": 30, "h": 0.5,
+      "fillColor": "{{accentColor}}",
+      "zIndex": 1
+    },
+    {
+      "role": "title",
+      "type": "text",
+      "x": 10, "y": 22, "w": 80, "h": 22,
+      "content": "{{title}}",
+      "fontSize": 44,
+      "fontWeight": "bold",
+      "color": "{{titleColor}}",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "zIndex": 2
+    },
+    {
+      "role": "subtitle",
+      "type": "text",
+      "x": 10, "y": 50, "w": 80, "h": 20,
+      "content": "{{subtitle}}",
+      "fontSize": 22,
+      "fontWeight": "normal",
+      "color": "{{bodyColor}}",
+      "textAlign": "center",
+      "verticalAlign": "top",
+      "lineHeight": 1.5,
+      "zIndex": 2
+    }
+  ]
+}

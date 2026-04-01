@@ -1,68 +1,182 @@
 import io
+import json
 import logging
+from pathlib import Path
+
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 
-from app.schemas.slide_schema import PresentationPayload, CoverData, BulletsData, SplitData, LayoutType
+from app.schemas.slide_schema import PresentationPayload
 
 logger = logging.getLogger(__name__)
 
-# 主题颜色配置
-THEME_COLORS = {
+# 预设 JSON 文件目录
+PRESET_DIR = Path(__file__).parent.parent / "layout_presets"
+
+# 各主题的颜色配置（十六进制字符串，与前端保持一致）
+THEME_COLOR_HEX = {
     "default": {
-        "bg": RGBColor(0xFF, 0xFF, 0xFF),
-        "title": RGBColor(0x1F, 0x29, 0x37),
-        "text": RGBColor(0x37, 0x47, 0x51),
-        "accent": RGBColor(0x3B, 0x82, 0xF6),
+        "bg": "#FFFFFF",
+        "accentColor": "#3B82F6",
+        "titleColor": "#1F2937",
+        "bodyColor": "#374151",
     },
     "dark": {
-        "bg": RGBColor(0x1E, 0x29, 0x3B),
-        "title": RGBColor(0xF1, 0xF5, 0xF9),
-        "text": RGBColor(0xCB, 0xD5, 0xE1),
-        "accent": RGBColor(0x60, 0xA5, 0xFA),
+        "bg": "#1E293B",
+        "accentColor": "#60A5FA",
+        "titleColor": "#F1F5F9",
+        "bodyColor": "#CBD5E1",
     },
     "corporate": {
-        "bg": RGBColor(0xF8, 0xFA, 0xFC),
-        "title": RGBColor(0x0F, 0x17, 0x2A),
-        "text": RGBColor(0x1E, 0x40, 0xAF),
-        "accent": RGBColor(0x1D, 0x4E, 0xD8),
+        "bg": "#F8FAFC",
+        "accentColor": "#1D4ED8",
+        "titleColor": "#0F172A",
+        "bodyColor": "#374151",
     },
 }
 
 
-def _set_bg_color(slide, color: RGBColor):
-    """设置幻灯片背景色"""
-    from pptx.oxml.ns import qn
-    from lxml import etree
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """将十六进制颜色转为 (R, G, B) 元组"""
+    h = hex_color.lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
 
-    background = slide.background
-    fill = background.fill
+
+def _blend(fg_hex: str, bg_hex: str, opacity: float) -> RGBColor:
+    """将前景色以给定透明度混合到背景色上"""
+    fr, fg, fb = _hex_to_rgb(fg_hex)
+    br, bg_g, bb = _hex_to_rgb(bg_hex)
+    r = int(br * (1 - opacity) + fr * opacity)
+    g = int(bg_g * (1 - opacity) + fg * opacity)
+    b = int(bb * (1 - opacity) + fb * opacity)
+    return RGBColor(r, g, b)
+
+
+def _resolve(tmpl: str, data: dict[str, str], theme_colors: dict[str, str]) -> str:
+    """将 {{variable}} 替换为 data 或 theme_colors 中的值"""
+    result = tmpl
+    for k, v in data.items():
+        result = result.replace(f"{{{{{k}}}}}", v)
+    for k, v in theme_colors.items():
+        result = result.replace(f"{{{{{k}}}}}", v)
+    return result
+
+
+def _load_preset(layout_name: str) -> dict:
+    """从 layout_presets/ 目录加载对应 JSON"""
+    path = PRESET_DIR / f"{layout_name}.json"
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _set_bg(slide, color: RGBColor):
+    """设置幻灯片背景纯色"""
+    fill = slide.background.fill
     fill.solid()
     fill.fore_color.rgb = color
 
 
-def _add_text_box(slide, text: str, left, top, width, height,
-                  font_size: int, color: RGBColor, bold: bool = False,
-                  align=PP_ALIGN.LEFT, font_name: str = "微软雅黑"):
-    """添加文本框辅助函数"""
+def _add_textbox(slide, text: str, left, top, width, height,
+                 font_size: int, color: RGBColor, bold: bool,
+                 align=PP_ALIGN.LEFT):
+    """添加文本框（微软雅黑，自动换行）"""
     txBox = slide.shapes.add_textbox(left, top, width, height)
     tf = txBox.text_frame
     tf.word_wrap = True
-
     p = tf.paragraphs[0]
     p.alignment = align
     run = p.add_run()
     run.text = text
-
     font = run.font
-    font.name = font_name
+    font.name = "微软雅黑"
     font.size = Pt(font_size)
     font.color.rgb = color
     font.bold = bold
 
-    return txBox
+
+def _build_preset_slide(prs: Presentation, pptx_slide, layout_name: str, data: dict[str, str], theme: str):
+    """
+    通用预设幻灯片构建器。
+    根据 layout_name 加载对应预设 JSON，解析元素并渲染到 pptx_slide 上。
+    """
+    try:
+        preset = _load_preset(layout_name)
+    except FileNotFoundError:
+        logger.warning(f"未找到预设文件: {layout_name}.json，跳过该页")
+        return
+
+    theme_colors = THEME_COLOR_HEX.get(theme, THEME_COLOR_HEX["default"])
+    bg_hex = theme_colors["bg"]
+    W = prs.slide_width
+    H = prs.slide_height
+
+    # 按 zIndex 升序渲染
+    elements = sorted(preset.get("elements", []), key=lambda e: e.get("zIndex", 0))
+
+    TEXT_ALIGN_MAP = {
+        "left": PP_ALIGN.LEFT,
+        "center": PP_ALIGN.CENTER,
+        "right": PP_ALIGN.RIGHT,
+    }
+    SHAPE_TYPE_MAP = {
+        "rectangle": 1,
+        "rounded-rect": 5,
+        "circle": 9,
+    }
+
+    for el in elements:
+        el_type = el.get("type")
+        # 百分比位置转换为 EMU
+        x = Emu(int(W * el["x"] / 100))
+        y = Emu(int(H * el["y"] / 100))
+        w = Emu(int(W * el["w"] / 100))
+        h = Emu(int(H * el["h"] / 100))
+
+        if el_type == "shape":
+            shape_type_id = SHAPE_TYPE_MAP.get(el.get("shape", "rectangle"), 1)
+            shape = pptx_slide.shapes.add_shape(shape_type_id, x, y, w, h)
+            fill_hex = _resolve(el.get("fillColor", "#CCCCCC"), data, theme_colors)
+            opacity = el.get("opacity", 1.0)
+            if opacity < 1.0:
+                color = _blend(fill_hex, bg_hex, opacity)
+            else:
+                r, g, b = _hex_to_rgb(fill_hex)
+                color = RGBColor(r, g, b)
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = color
+            shape.line.fill.background()
+
+        elif el_type == "text":
+            content_tmpl = el.get("content", "")
+            content = _resolve(content_tmpl, data, theme_colors)
+            if not content:
+                continue  # 跳过空内容文本框
+
+            color_hex = _resolve(el.get("color", "#000000"), data, theme_colors)
+            r, g, b = _hex_to_rgb(color_hex)
+            text_color = RGBColor(r, g, b)
+
+            bold = el.get("fontWeight") == "bold"
+            font_size = el.get("fontSize", 16)
+            align = TEXT_ALIGN_MAP.get(el.get("textAlign", "left"), PP_ALIGN.LEFT)
+
+            _add_textbox(pptx_slide, content, x, y, w, h,
+                         font_size=font_size, color=text_color,
+                         bold=bold, align=align)
+
+        elif el_type == "icon":
+            # PPTX 中用 ● 等 Unicode 符号替代图标
+            icon_name = _resolve(el.get("icon", ""), data, theme_colors)
+            if not icon_name:
+                continue
+            color_hex = _resolve(el.get("color", "#3B82F6"), data, theme_colors)
+            r, g, b = _hex_to_rgb(color_hex)
+            icon_color = RGBColor(r, g, b)
+            _add_textbox(pptx_slide, "●", x, y, w, h,
+                         font_size=int(el.get("h", 8) * 2),
+                         color=icon_color, bold=False, align=PP_ALIGN.CENTER)
 
 
 def build_pptx(payload: PresentationPayload) -> io.BytesIO:
@@ -71,185 +185,22 @@ def build_pptx(payload: PresentationPayload) -> io.BytesIO:
     返回 BytesIO 对象供路由层直接输出。
     """
     prs = Presentation()
-    # 设置 16:9 比例（宽 33.87cm × 高 19.05cm）
+    # 设置 16:9 比例
     prs.slide_width = Inches(13.33)
     prs.slide_height = Inches(7.5)
 
-    colors = THEME_COLORS.get(payload.theme, THEME_COLORS["default"])
+    theme_colors = THEME_COLOR_HEX.get(payload.theme, THEME_COLOR_HEX["default"])
+    bg_hex = theme_colors["bg"]
+    bg_r, bg_g, bg_b = _hex_to_rgb(bg_hex)
+
+    blank_layout = prs.slide_layouts[6]  # 空白布局
 
     for slide_payload in payload.slides:
-        # 使用空白布局，手动布局所有元素
-        blank_layout = prs.slide_layouts[6]
-        slide = prs.slides.add_slide(blank_layout)
-
-        # 设置背景色
-        _set_bg_color(slide, colors["bg"])
-
-        if slide_payload.layout == LayoutType.COVER:
-            _build_cover_slide(slide, slide_payload.data, colors, prs)
-        elif slide_payload.layout == LayoutType.BULLETS:
-            _build_bullets_slide(slide, slide_payload.data, colors, prs)
-        elif slide_payload.layout == LayoutType.SPLIT:
-            _build_split_slide(slide, slide_payload.data, colors, prs)
-        else:
-            logger.warning(f"未知的 layout 类型：{slide_payload.layout}，跳过")
+        pptx_slide = prs.slides.add_slide(blank_layout)
+        _set_bg(pptx_slide, RGBColor(bg_r, bg_g, bg_b))
+        _build_preset_slide(prs, pptx_slide, slide_payload.layout.value, slide_payload.data, payload.theme)
 
     output = io.BytesIO()
     prs.save(output)
     output.seek(0)
     return output
-
-
-def _build_cover_slide(slide, data: CoverData, colors: dict, prs: Presentation):
-    """构建封面页"""
-    w = prs.slide_width
-    h = prs.slide_height
-
-    # 顶部装饰条
-    from pptx.util import Pt as PtUtil
-    shape = slide.shapes.add_shape(
-        1,  # MSO_SHAPE_TYPE.RECTANGLE
-        Emu(0), Emu(int(h * 0.35)),
-        w, Emu(int(h * 0.005))
-    )
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = colors["accent"]
-    shape.line.fill.background()
-
-    # 标题
-    _add_text_box(
-        slide, data.title,
-        Emu(int(w * 0.1)), Emu(int(h * 0.25)),
-        Emu(int(w * 0.8)), Emu(int(h * 0.2)),
-        font_size=40, color=colors["title"],
-        bold=True, align=PP_ALIGN.CENTER
-    )
-
-    # 副标题
-    _add_text_box(
-        slide, data.subtitle,
-        Emu(int(w * 0.1)), Emu(int(h * 0.5)),
-        Emu(int(w * 0.8)), Emu(int(h * 0.25)),
-        font_size=20, color=colors["text"],
-        bold=False, align=PP_ALIGN.CENTER
-    )
-
-
-def _build_bullets_slide(slide, data: BulletsData, colors: dict, prs: Presentation):
-    """构建要点页"""
-    w = prs.slide_width
-    h = prs.slide_height
-
-    # 顶部装饰条
-    shape = slide.shapes.add_shape(
-        1,
-        Emu(0), Emu(0),
-        w, Emu(int(h * 0.008))
-    )
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = colors["accent"]
-    shape.line.fill.background()
-
-    # 标题
-    _add_text_box(
-        slide, data.title,
-        Emu(int(w * 0.07)), Emu(int(h * 0.06)),
-        Emu(int(w * 0.86)), Emu(int(h * 0.15)),
-        font_size=28, color=colors["title"],
-        bold=True, align=PP_ALIGN.LEFT
-    )
-
-    # 分隔线
-    line_shape = slide.shapes.add_shape(
-        1,
-        Emu(int(w * 0.07)), Emu(int(h * 0.22)),
-        Emu(int(w * 0.86)), Emu(int(h * 0.003))
-    )
-    line_shape.fill.solid()
-    line_shape.fill.fore_color.rgb = colors["accent"]
-    line_shape.line.fill.background()
-
-    # 要点列表
-    bullet_height = Emu(int(h * 0.1))
-    for i, bullet in enumerate(data.bullets):
-        top = Emu(int(h * 0.27)) + i * bullet_height
-        # 圆点装饰
-        dot = slide.shapes.add_shape(
-            9,  # 椭圆
-            Emu(int(w * 0.07)), top + Emu(int(bullet_height * 0.3)),
-            Emu(int(w * 0.012)), Emu(int(w * 0.012))
-        )
-        dot.fill.solid()
-        dot.fill.fore_color.rgb = colors["accent"]
-        dot.line.fill.background()
-
-        _add_text_box(
-            slide, bullet,
-            Emu(int(w * 0.1)), top,
-            Emu(int(w * 0.83)), bullet_height,
-            font_size=16, color=colors["text"],
-            bold=False, align=PP_ALIGN.LEFT
-        )
-
-
-def _build_split_slide(slide, data: SplitData, colors: dict, prs: Presentation):
-    """构建分栏页"""
-    w = prs.slide_width
-    h = prs.slide_height
-
-    # 顶部装饰条
-    shape = slide.shapes.add_shape(
-        1,
-        Emu(0), Emu(0),
-        w, Emu(int(h * 0.008))
-    )
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = colors["accent"]
-    shape.line.fill.background()
-
-    # 标题
-    _add_text_box(
-        slide, data.title,
-        Emu(int(w * 0.07)), Emu(int(h * 0.06)),
-        Emu(int(w * 0.86)), Emu(int(h * 0.15)),
-        font_size=28, color=colors["title"],
-        bold=True, align=PP_ALIGN.LEFT
-    )
-
-    # 左栏背景
-    left_bg = slide.shapes.add_shape(
-        1,
-        Emu(int(w * 0.05)), Emu(int(h * 0.25)),
-        Emu(int(w * 0.42)), Emu(int(h * 0.65))
-    )
-    left_bg.fill.solid()
-    left_bg.fill.fore_color.rgb = RGBColor(0xEF, 0xF6, 0xFF)
-    left_bg.line.fill.background()
-
-    # 右栏背景
-    right_bg = slide.shapes.add_shape(
-        1,
-        Emu(int(w * 0.53)), Emu(int(h * 0.25)),
-        Emu(int(w * 0.42)), Emu(int(h * 0.65))
-    )
-    right_bg.fill.solid()
-    right_bg.fill.fore_color.rgb = RGBColor(0xF0, 0xFD, 0xF4)
-    right_bg.line.fill.background()
-
-    # 左栏内容
-    _add_text_box(
-        slide, data.leftContent,
-        Emu(int(w * 0.07)), Emu(int(h * 0.28)),
-        Emu(int(w * 0.38)), Emu(int(h * 0.58)),
-        font_size=14, color=colors["text"],
-        bold=False, align=PP_ALIGN.LEFT
-    )
-
-    # 右栏内容
-    _add_text_box(
-        slide, data.rightContent,
-        Emu(int(w * 0.55)), Emu(int(h * 0.28)),
-        Emu(int(w * 0.38)), Emu(int(h * 0.58)),
-        font_size=14, color=colors["text"],
-        bold=False, align=PP_ALIGN.LEFT
-    )

@@ -8,7 +8,10 @@
       "Bash(cp:*)",
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(chmod +x:*)"
+      "Bash(chmod +x:*)",
+      "Bash(mkdir -p /Users/henryli/Desktop/Project/SlideGen/backend/app/layout_presets)",
+      "Bash(mkdir -p /Users/henryli/Desktop/Project/SlideGen/frontend/src/data)",
+      "Bash(mkdir -p /Users/henryli/Desktop/Project/SlideGen/frontend/src/components/elements)"
     ]
   }
 }

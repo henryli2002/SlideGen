@@ -1,270 +1,168 @@
-import type { Slide, CoverData, BulletsData, SplitData } from "../types/schema";
+import type { Slide } from "../types/schema";
+import { LAYOUT_NAMES } from "../presets/index";
 
 interface Props {
   slide: Slide | null;
-  onUpdate: (slideId: string, newData: Slide["data"]) => void;
+  onUpdate: (slideId: string, newData: Record<string, string>) => void;
 }
 
-// 字数统计组件
+// ===== 各布局的可编辑字段配置 =====
+interface FieldConfig {
+  key: string;
+  label: string;
+  maxLength: number;
+  multiline?: boolean;
+  placeholder?: string;
+}
+
+const FIELD_CONFIG: Record<string, FieldConfig[]> = {
+  cover_centered: [
+    { key: "title", label: "标题", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "subtitle", label: "副标题", maxLength: 60, multiline: true, placeholder: "最多 60 字" },
+  ],
+  cover_left_bold: [
+    { key: "title", label: "标题", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "subtitle", label: "副标题", maxLength: 80, multiline: true, placeholder: "最多 80 字" },
+  ],
+  section_divider: [
+    { key: "title", label: "章节标题", maxLength: 20, placeholder: "最多 20 字" },
+  ],
+  bullets_icon_list: [
+    { key: "title", label: "标题", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "bullet1", label: "要点 1", maxLength: 40, placeholder: "最多 40 字" },
+    { key: "bullet1_icon", label: "图标 1", maxLength: 20, placeholder: "如 check / star / zap" },
+    { key: "bullet2", label: "要点 2", maxLength: 40, placeholder: "最多 40 字" },
+    { key: "bullet2_icon", label: "图标 2", maxLength: 20, placeholder: "图标名称" },
+    { key: "bullet3", label: "要点 3", maxLength: 40, placeholder: "最多 40 字" },
+    { key: "bullet3_icon", label: "图标 3", maxLength: 20, placeholder: "图标名称" },
+    { key: "bullet4", label: "要点 4（可选）", maxLength: 40, placeholder: "留空则不显示" },
+    { key: "bullet4_icon", label: "图标 4", maxLength: 20, placeholder: "图标名称" },
+    { key: "bullet5", label: "要点 5（可选）", maxLength: 40, placeholder: "留空则不显示" },
+    { key: "bullet5_icon", label: "图标 5", maxLength: 20, placeholder: "图标名称" },
+  ],
+  bullets_card_grid: [
+    { key: "title", label: "标题", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "card1_title", label: "卡片 1 标题", maxLength: 15, placeholder: "最多 15 字" },
+    { key: "card1_desc", label: "卡片 1 描述", maxLength: 50, multiline: true, placeholder: "最多 50 字" },
+    { key: "card2_title", label: "卡片 2 标题", maxLength: 15, placeholder: "最多 15 字" },
+    { key: "card2_desc", label: "卡片 2 描述", maxLength: 50, multiline: true, placeholder: "最多 50 字" },
+    { key: "card3_title", label: "卡片 3 标题", maxLength: 15, placeholder: "最多 15 字" },
+    { key: "card3_desc", label: "卡片 3 描述", maxLength: 50, multiline: true, placeholder: "最多 50 字" },
+    { key: "card4_title", label: "卡片 4 标题", maxLength: 15, placeholder: "最多 15 字" },
+    { key: "card4_desc", label: "卡片 4 描述", maxLength: 50, multiline: true, placeholder: "最多 50 字" },
+  ],
+  stats_three_column: [
+    { key: "title", label: "标题", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "stat1_number", label: "数字 1", maxLength: 10, placeholder: "如 98%" },
+    { key: "stat1_label", label: "指标 1 说明", maxLength: 20, placeholder: "最多 20 字" },
+    { key: "stat2_number", label: "数字 2", maxLength: 10, placeholder: "如 97M" },
+    { key: "stat2_label", label: "指标 2 说明", maxLength: 20, placeholder: "最多 20 字" },
+    { key: "stat3_number", label: "数字 3", maxLength: 10, placeholder: "如 40%" },
+    { key: "stat3_label", label: "指标 3 说明", maxLength: 20, placeholder: "最多 20 字" },
+  ],
+  split_two_column: [
+    { key: "title", label: "标题", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "left_title", label: "左栏标题", maxLength: 15, placeholder: "最多 15 字" },
+    { key: "left_content", label: "左栏内容", maxLength: 120, multiline: true, placeholder: "最多 120 字" },
+    { key: "right_title", label: "右栏标题", maxLength: 15, placeholder: "最多 15 字" },
+    { key: "right_content", label: "右栏内容", maxLength: 120, multiline: true, placeholder: "最多 120 字" },
+  ],
+  quote_centered: [
+    { key: "quote", label: "引言内容", maxLength: 80, multiline: true, placeholder: "最多 80 字" },
+    { key: "attribution", label: "出处 / 作者", maxLength: 30, placeholder: "最多 30 字" },
+  ],
+  timeline_horizontal: [
+    { key: "title", label: "标题", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "point1_time", label: "节点 1 时间", maxLength: 10, placeholder: "如 2020" },
+    { key: "point1_text", label: "节点 1 描述", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "point2_time", label: "节点 2 时间", maxLength: 10, placeholder: "如 2022" },
+    { key: "point2_text", label: "节点 2 描述", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "point3_time", label: "节点 3 时间", maxLength: 10, placeholder: "如 2024" },
+    { key: "point3_text", label: "节点 3 描述", maxLength: 30, placeholder: "最多 30 字" },
+    { key: "point4_time", label: "节点 4 时间（可选）", maxLength: 10, placeholder: "留空则不显示" },
+    { key: "point4_text", label: "节点 4 描述", maxLength: 30, placeholder: "最多 30 字" },
+  ],
+  closing_cta: [
+    { key: "title", label: "结尾标题", maxLength: 20, placeholder: "最多 20 字" },
+    { key: "subtitle", label: "副文本", maxLength: 60, multiline: true, placeholder: "最多 60 字" },
+    { key: "cta_text", label: "按钮文字", maxLength: 15, placeholder: "最多 15 字" },
+  ],
+};
+
+// 字数统计
 function CharCount({ current, max }: { current: number; max: number }) {
-  const isOver = current > max;
+  const over = current > max;
   return (
-    <span style={{ fontSize: 11, color: isOver ? "#ef4444" : "#9ca3af", marginLeft: 6 }}>
+    <span style={{ fontSize: 11, color: over ? "#ef4444" : "#9ca3af", marginLeft: 6 }}>
       {current}/{max}
     </span>
   );
 }
 
-// 封面表单
-function CoverForm({ slide, onUpdate }: { slide: Slide; onUpdate: Props["onUpdate"] }) {
-  const data = slide.data as CoverData;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div>
-        <label style={labelStyle}>
-          标题 <CharCount current={data.title.length} max={30} />
-        </label>
-        <input
-          style={inputStyle}
-          value={data.title}
-          maxLength={30}
-          onChange={(e) => onUpdate(slide.id, { ...data, title: e.target.value })}
-          placeholder="演示文稿标题（最多 30 字）"
-        />
-      </div>
-      <div>
-        <label style={labelStyle}>
-          副标题 <CharCount current={data.subtitle.length} max={60} />
-        </label>
-        <textarea
-          style={{ ...inputStyle, height: 80, resize: "vertical" }}
-          value={data.subtitle}
-          maxLength={60}
-          onChange={(e) => onUpdate(slide.id, { ...data, subtitle: e.target.value })}
-          placeholder="副标题内容（最多 60 字）"
-        />
-      </div>
-    </div>
-  );
-}
-
-// 要点表单
-function BulletsForm({ slide, onUpdate }: { slide: Slide; onUpdate: Props["onUpdate"] }) {
-  const data = slide.data as BulletsData;
-
-  const updateBullet = (index: number, value: string) => {
-    const newBullets = [...data.bullets];
-    newBullets[index] = value;
-    onUpdate(slide.id, { ...data, bullets: newBullets });
-  };
-
-  const addBullet = () => {
-    if (data.bullets.length >= 6) return;
-    onUpdate(slide.id, { ...data, bullets: [...data.bullets, ""] });
-  };
-
-  const removeBullet = (index: number) => {
-    if (data.bullets.length <= 3) return;
-    const newBullets = data.bullets.filter((_, i) => i !== index);
-    onUpdate(slide.id, { ...data, bullets: newBullets });
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div>
-        <label style={labelStyle}>
-          标题 <CharCount current={data.title.length} max={30} />
-        </label>
-        <input
-          style={inputStyle}
-          value={data.title}
-          maxLength={30}
-          onChange={(e) => onUpdate(slide.id, { ...data, title: e.target.value })}
-          placeholder="页面标题（最多 30 字）"
-        />
-      </div>
-
-      <div>
-        <label style={labelStyle}>
-          要点列表
-          <span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 6 }}>
-            {data.bullets.length}/6（最少 3 条）
-          </span>
-        </label>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {data.bullets.map((bullet, index) => (
-            <div key={index} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-              <span style={{ color: "#9ca3af", fontSize: 13, lineHeight: "32px", minWidth: 20, textAlign: "center" }}>
-                {index + 1}
-              </span>
-              <input
-                style={{ ...inputStyle, flex: 1 }}
-                value={bullet}
-                maxLength={40}
-                onChange={(e) => updateBullet(index, e.target.value)}
-                placeholder={`要点 ${index + 1}（最多 40 字）`}
-              />
-              <button
-                onClick={() => removeBullet(index)}
-                disabled={data.bullets.length <= 3}
-                style={{
-                  ...btnStyle,
-                  background: data.bullets.length <= 3 ? "#f3f4f6" : "#fee2e2",
-                  color: data.bullets.length <= 3 ? "#d1d5db" : "#ef4444",
-                  cursor: data.bullets.length <= 3 ? "not-allowed" : "pointer",
-                  width: 30,
-                  height: 30,
-                  padding: 0,
-                  fontSize: 16,
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-        {data.bullets.length < 6 && (
-          <button
-            onClick={addBullet}
-            style={{ ...btnStyle, marginTop: 8, color: "#3B82F6", background: "#EFF6FF" }}
-          >
-            + 添加要点
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// 分栏表单
-function SplitForm({ slide, onUpdate }: { slide: Slide; onUpdate: Props["onUpdate"] }) {
-  const data = slide.data as SplitData;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div>
-        <label style={labelStyle}>
-          标题 <CharCount current={data.title.length} max={30} />
-        </label>
-        <input
-          style={inputStyle}
-          value={data.title}
-          maxLength={30}
-          onChange={(e) => onUpdate(slide.id, { ...data, title: e.target.value })}
-          placeholder="页面标题（最多 30 字）"
-        />
-      </div>
-      <div>
-        <label style={labelStyle}>
-          左栏内容 <CharCount current={data.leftContent.length} max={120} />
-        </label>
-        <textarea
-          style={{ ...inputStyle, height: 100, resize: "vertical" }}
-          value={data.leftContent}
-          maxLength={120}
-          onChange={(e) => onUpdate(slide.id, { ...data, leftContent: e.target.value })}
-          placeholder="左栏内容（最多 120 字）"
-        />
-      </div>
-      <div>
-        <label style={labelStyle}>
-          右栏内容 <CharCount current={data.rightContent.length} max={120} />
-        </label>
-        <textarea
-          style={{ ...inputStyle, height: 100, resize: "vertical" }}
-          value={data.rightContent}
-          maxLength={120}
-          onChange={(e) => onUpdate(slide.id, { ...data, rightContent: e.target.value })}
-          placeholder="右栏内容（最多 120 字）"
-        />
-      </div>
-    </div>
-  );
-}
-
-// 公共样式
 const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#374151",
-  marginBottom: 6,
+  display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4,
 };
-
 const inputStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  border: "1px solid #e5e7eb",
-  borderRadius: 6,
-  padding: "7px 10px",
-  fontSize: 13,
-  color: "#1f2937",
-  outline: "none",
-  lineHeight: "1.5",
-  fontFamily: "inherit",
+  width: "100%", boxSizing: "border-box", border: "1px solid #e5e7eb",
+  borderRadius: 6, padding: "6px 10px", fontSize: 13, color: "#1f2937",
+  outline: "none", lineHeight: 1.5, fontFamily: "inherit",
 };
 
-const btnStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: 6,
-  padding: "6px 12px",
-  fontSize: 13,
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
-
-// 布局标签映射
-const LAYOUT_LABEL: Record<string, string> = {
-  cover: "封面页",
-  bullets: "要点页",
-  split: "分栏页",
-};
-
-// 主编辑表单组件
 export function EditForm({ slide, onUpdate }: Props) {
   if (!slide) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          color: "#9ca3af",
-          fontSize: 13,
-          textAlign: "center",
-          padding: 16,
-        }}
-      >
-        点击左侧缩略图选择要编辑的页面
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9ca3af", fontSize: 13, textAlign: "center", padding: 16 }}>
+        点击左侧缩略图<br />选择要编辑的页面
       </div>
     );
   }
 
+  const fields = FIELD_CONFIG[slide.layout] ?? [];
+
+  const handleChange = (key: string, value: string) => {
+    onUpdate(slide.id, { ...slide.data, [key]: value });
+  };
+
   return (
-    <div style={{ padding: 16, overflow: "auto", height: "100%" }}>
+    <div style={{ padding: 14, overflow: "auto", height: "100%" }}>
       {/* 布局类型标签 */}
-      <div style={{ marginBottom: 16 }}>
-        <span
-          style={{
-            display: "inline-block",
-            background: "#EFF6FF",
-            color: "#3B82F6",
-            borderRadius: 4,
-            padding: "3px 10px",
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-        >
-          {LAYOUT_LABEL[slide.layout] || slide.layout}
+      <div style={{ marginBottom: 14 }}>
+        <span style={{ display: "inline-block", background: "#EFF6FF", color: "#3B82F6", borderRadius: 4, padding: "3px 10px", fontSize: 11, fontWeight: 600 }}>
+          {LAYOUT_NAMES[slide.layout] ?? slide.layout}
         </span>
       </div>
 
-      {/* 根据 layout 渲染对应表单 */}
-      {slide.layout === "cover" && <CoverForm slide={slide} onUpdate={onUpdate} />}
-      {slide.layout === "bullets" && <BulletsForm slide={slide} onUpdate={onUpdate} />}
-      {slide.layout === "split" && <SplitForm slide={slide} onUpdate={onUpdate} />}
+      {/* 动态字段表单 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {fields.map((field) => {
+          const value = slide.data[field.key] ?? "";
+          return (
+            <div key={field.key}>
+              <label style={labelStyle}>
+                {field.label}
+                <CharCount current={value.length} max={field.maxLength} />
+              </label>
+              {field.multiline ? (
+                <textarea
+                  style={{ ...inputStyle, height: 72, resize: "vertical" }}
+                  value={value}
+                  maxLength={field.maxLength}
+                  placeholder={field.placeholder}
+                  onChange={(e) => handleChange(field.key, e.target.value)}
+                />
+              ) : (
+                <input
+                  style={inputStyle}
+                  value={value}
+                  maxLength={field.maxLength}
+                  placeholder={field.placeholder}
+                  onChange={(e) => handleChange(field.key, e.target.value)}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,79 @@
+{
+  "presetId": "closing_cta",
+  "name": "结尾行动号召",
+  "description": "感谢页或行动号召，适合演讲结尾",
+  "category": "cover",
+  "elements": [
+    {
+      "role": "bg_tint",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 0, "y": 0, "w": 100, "h": 100,
+      "fillColor": "{{accentColor}}",
+      "opacity": 0.06,
+      "zIndex": 0
+    },
+    {
+      "role": "accent_top",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 0, "y": 0, "w": 100, "h": 1.5,
+      "fillColor": "{{accentColor}}",
+      "zIndex": 1
+    },
+    {
+      "role": "accent_bottom",
+      "type": "shape",
+      "shape": "rectangle",
+      "x": 0, "y": 98.5, "w": 100, "h": 1.5,
+      "fillColor": "{{accentColor}}",
+      "zIndex": 1
+    },
+    {
+      "role": "title",
+      "type": "text",
+      "x": 10, "y": 18, "w": 80, "h": 26,
+      "content": "{{title}}",
+      "fontSize": 48,
+      "fontWeight": "bold",
+      "color": "{{titleColor}}",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "zIndex": 2
+    },
+    {
+      "role": "subtitle",
+      "type": "text",
+      "x": 10, "y": 47, "w": 80, "h": 18,
+      "content": "{{subtitle}}",
+      "fontSize": 20,
+      "fontWeight": "normal",
+      "color": "{{bodyColor}}",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "lineHeight": 1.5,
+      "zIndex": 2
+    },
+    {
+      "role": "cta_bg",
+      "type": "shape",
+      "shape": "rounded-rect",
+      "x": 35, "y": 70, "w": 30, "h": 14,
+      "fillColor": "{{accentColor}}",
+      "borderRadius": 24,
+      "zIndex": 2
+    },
+    {
+      "role": "cta_text",
+      "type": "text",
+      "x": 35, "y": 70, "w": 30, "h": 14,
+      "content": "{{cta_text}}",
+      "fontSize": 20,
+      "fontWeight": "bold",
+      "color": "#ffffff",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "zIndex": 3
+    }
+  ]
+}
