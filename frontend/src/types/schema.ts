@@ -1,4 +1,5 @@
 // ===== 核心数据契约 =====
+// 版本升级为 2.0，对应 语义防腐层 + 状态桥接双轨制 架构
 
 export type LayoutType =
   | "cover_centered"
@@ -13,7 +14,7 @@ export type LayoutType =
   | "quote_centered";
 
 export interface Presentation {
-  schemaVersion: "1.0";
+  schemaVersion: "2.0";           // 升级为 2.0
   theme: "default" | "dark" | "corporate";
   slides: Slide[];
 }

@@ -1,19 +1,19 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSSE } from "./hooks/useSSE";
 import type { Presentation } from "./types/schema";
 import { InputPanel } from "./components/InputPanel";
-import { SlideCanvas } from "./components/SlideCanvas";
+import FabricCanvas from "./components/FabricCanvas";
+import type { FabricCanvasRef } from "./components/FabricCanvas";
 import { SlideList } from "./components/SlideList";
 import { EditForm } from "./components/EditForm";
 import { ExportButton } from "./components/ExportButton";
 import "./styles/slides.css";
 
-// 全局基础样式重置
 const globalStyle = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
-    background: #f1f5f9;
+    background: #f0f2f5;
     height: 100vh;
     overflow: hidden;
   }
@@ -29,9 +29,13 @@ export default function App() {
   const { slides, status, errorMessage, startGeneration, stopGeneration, updateSlide } = useSSE();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [theme, setTheme] = useState<Theme>("default");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const canvasRef = useRef<FabricCanvasRef>(null);
   const prevSlidesLenRef = useRef(0);
+  const viewportRef = useRef<HTMLElement>(null);
+  const rafRef = useRef<number>(0);
 
-  // 生成过程中，自动跳转到最新页
+  // 生成时自动跳到最新页
   useEffect(() => {
     if (slides.length > prevSlidesLenRef.current && status === "loading") {
       setCurrentIndex(slides.length - 1);
@@ -39,12 +43,38 @@ export default function App() {
     prevSlidesLenRef.current = slides.length;
   }, [slides.length, status]);
 
-  // 当前幻灯片
+  // 过渡动画期间持续触发 canvas resize，实现平滑缩放
+  const animateResize = useCallback(() => {
+    canvasRef.current?.triggerResize();
+    rafRef.current = requestAnimationFrame(animateResize);
+  }, []);
+
+  // 侧边栏切换时启动动画帧循环，过渡结束后停止
+  useEffect(() => {
+    // 启动 rAF 循环，持续触发 resize
+    rafRef.current = requestAnimationFrame(animateResize);
+
+    const viewport = viewportRef.current;
+    const handleTransitionEnd = (e: TransitionEvent) => {
+      if (e.propertyName === "padding-right") {
+        cancelAnimationFrame(rafRef.current);
+        // 最终精确 resize
+        canvasRef.current?.triggerResize();
+      }
+    };
+
+    viewport?.addEventListener("transitionend", handleTransitionEnd);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      viewport?.removeEventListener("transitionend", handleTransitionEnd);
+    };
+  }, [isSidebarOpen, animateResize]);
+
   const currentSlide = slides[currentIndex] ?? null;
 
-  // 组装完整 Presentation 对象（用于导出）
   const presentation: Presentation = {
-    schemaVersion: "1.0",
+    schemaVersion: "2.0",
     theme,
     slides,
   };
@@ -67,19 +97,14 @@ export default function App() {
             zIndex: 10,
           }}
         >
-          {/* Logo */}
           <div style={{ fontWeight: 700, fontSize: 18, color: "#3B82F6", whiteSpace: "nowrap" }}>
             SlideGen AI
           </div>
-
-          {/* 主题输入 + 按钮 */}
           <InputPanel
             status={status}
             onGenerate={startGeneration}
             onStop={stopGeneration}
           />
-
-          {/* 主题选择 */}
           <select
             value={theme}
             onChange={(e) => setTheme(e.target.value as Theme)}
@@ -101,25 +126,25 @@ export default function App() {
           </select>
         </header>
 
-        {/* ===== 主体三栏布局 ===== */}
+        {/* ===== 主工作区 ===== */}
         <main
+          className="workspace"
           style={{
             flex: 1,
-            display: "grid",
-            gridTemplateColumns: "160px 1fr 260px",
-            gridTemplateRows: "1fr",
+            display: "flex",
             overflow: "hidden",
             position: "relative",
           }}
         >
-          {/* 左：缩略图列表 */}
+          {/* 左侧缩略图列表 */}
           <aside
             style={{
+              width: 160,
               background: "#f8fafc",
               borderRight: "1px solid #e5e7eb",
-              overflow: "hidden",
               display: "flex",
               flexDirection: "column",
+              flexShrink: 0,
             }}
           >
             <div
@@ -144,80 +169,42 @@ export default function App() {
             </div>
           </aside>
 
-          {/* 中：主画布 */}
+          {/* ===== 中央视口区域（桌面 + 纸张） ===== */}
           <section
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 32,
-              gap: 16,
-              overflow: "hidden",
-              background: "#f1f5f9",
-            }}
+            ref={viewportRef}
+            className={`canvas-viewport${isSidebarOpen ? " sidebar-open" : ""}`}
           >
-            {/* 生成中加载提示 */}
+            {/* 生成中指示器 */}
             {status === "loading" && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  background: "#3B82F6",
-                  color: "#fff",
-                  padding: "6px 16px",
-                  borderRadius: 20,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  zIndex: 5,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  boxShadow: "0 2px 8px rgba(59,130,246,0.4)",
-                  whiteSpace: "nowrap",
-                }}
-              >
+              <div className="loading-indicator">
                 <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span>
                 AI 正在生成中...
               </div>
             )}
 
-            {/* 错误提示 */}
+            {/* 错误指示器 */}
             {status === "error" && (
-              <div
-                style={{
-                  background: "#fee2e2",
-                  color: "#ef4444",
-                  padding: "10px 16px",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  width: "100%",
-                  maxWidth: 640,
-                  flexShrink: 0,
-                }}
-              >
+              <div className="error-indicator">
                 {errorMessage || "发生错误，请重试"}
               </div>
             )}
 
-            {/* 幻灯片画布 */}
-            <div style={{ width: "100%", maxWidth: 800 }}>
-              <SlideCanvas slide={currentSlide} theme={theme} />
+            {/* 白色纸张 —— Fabric.js 画布的物理边界 */}
+            <div className="slide-paper">
+              <FabricCanvas ref={canvasRef} slide={currentSlide} theme={theme} />
             </div>
 
-            {/* 页码导航 */}
+            {/* 底部页码导航 */}
             {slides.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+              <div className="slide-nav-bar">
                 <button
                   onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
                   disabled={currentIndex === 0}
                   style={navBtnStyle(currentIndex === 0)}
                 >
-                  ‹ 上一页
+                  ‹
                 </button>
-                <span style={{ fontSize: 13, color: "#6b7280" }}>
+                <span style={{ fontSize: 13, color: "#6b7280", minWidth: 60, textAlign: "center" }}>
                   {currentIndex + 1} / {slides.length}
                 </span>
                 <button
@@ -225,33 +212,62 @@ export default function App() {
                   disabled={currentIndex === slides.length - 1}
                   style={navBtnStyle(currentIndex === slides.length - 1)}
                 >
-                  下一页 ›
+                  ›
                 </button>
               </div>
             )}
           </section>
 
-          {/* 右：编辑表单 */}
-          <aside
-            style={{
-              background: "#ffffff",
-              borderLeft: "1px solid #e5e7eb",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-            }}
+          {/* ===== 抽屉触发器 ===== */}
+          <div
+            className={`drawer-trigger${isSidebarOpen ? " open" : ""}`}
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            style={{ right: isSidebarOpen ? 320 : 0 }}
           >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </div>
+
+          {/* ===== 右侧编辑抽屉 ===== */}
+          <aside className={`edit-drawer${isSidebarOpen ? "" : " closed"}`}>
             <div
               style={{
-                padding: "10px 16px",
+                padding: "12px 16px",
                 fontSize: 13,
                 fontWeight: 600,
                 color: "#374151",
                 borderBottom: "1px solid #e5e7eb",
                 flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
               }}
             >
-              编辑内容
+              <span>编辑内容</span>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 16,
+                  color: "#9ca3af",
+                  padding: "2px 4px",
+                  borderRadius: 4,
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
             </div>
             <div style={{ flex: 1, overflow: "auto" }}>
               <EditForm
@@ -286,25 +302,18 @@ export default function App() {
           />
         </footer>
       </div>
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </>
   );
 }
 
 function navBtnStyle(disabled: boolean): React.CSSProperties {
   return {
-    padding: "6px 14px",
-    borderRadius: 6,
+    padding: "4px 12px",
+    borderRadius: 4,
     border: "1px solid #e5e7eb",
     background: disabled ? "#f9fafb" : "#ffffff",
     color: disabled ? "#d1d5db" : "#374151",
-    fontSize: 13,
+    fontSize: 16,
     cursor: disabled ? "not-allowed" : "pointer",
     fontFamily: "inherit",
   };

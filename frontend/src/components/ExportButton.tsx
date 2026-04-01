@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Presentation } from "../types/schema";
+import { downloadPPTX } from "../services/pptxExport";
 
 interface Props {
   presentation: Presentation;
@@ -17,26 +18,7 @@ export function ExportButton({ presentation, disabled }: Props) {
     setError("");
 
     try {
-      const response = await fetch("/api/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(presentation),
-      });
-
-      if (!response.ok) {
-        throw new Error(`导出失败：HTTP ${response.status}`);
-      }
-
-      // 触发浏览器下载
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "presentation.pptx";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      await downloadPPTX(presentation, "presentation.pptx");
     } catch (e) {
       setError((e as Error).message || "导出失败，请重试");
     } finally {

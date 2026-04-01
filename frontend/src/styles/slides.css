@@ -1,5 +1,103 @@
 /* ===== 幻灯片专用样式 ===== */
 
+/* ——— 视口与纸张层级 ——— */
+
+/* 桌面视口 - 铺满中央区域，模拟编辑器桌面 */
+.canvas-viewport {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #e8ecf1;
+  background-image: radial-gradient(circle, #d5dae0 1px, transparent 1px);
+  background-size: 20px 20px;
+  padding: 40px;
+  position: relative;
+  transition: padding-right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.canvas-viewport.sidebar-open {
+  padding-right: 360px;
+}
+
+/* 悬浮纸张容器 - 承载 FabricCanvas 的白色卡片 */
+.slide-paper {
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 16 / 9;
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    0 8px 16px rgba(0, 0, 0, 0.08),
+    0 24px 48px rgba(0, 0, 0, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ——— 悬浮抽屉 ——— */
+
+/* 抽屉触发器按钮 */
+.drawer-trigger {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 25;
+  width: 28px;
+  height: 56px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.06);
+  transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.2s ease;
+}
+
+.drawer-trigger:hover {
+  background-color: #f0f4f8;
+}
+
+.drawer-trigger svg {
+  width: 14px;
+  height: 14px;
+  color: #6b7280;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawer-trigger.open svg {
+  transform: rotate(180deg);
+}
+
+/* 编辑抽屉面板 */
+.edit-drawer {
+  position: fixed;
+  top: 56px;
+  bottom: 48px;
+  right: 0;
+  width: 320px;
+  background: #ffffff;
+  border-left: 1px solid #e5e7eb;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.edit-drawer.closed {
+  transform: translateX(100%);
+  box-shadow: none;
+}
+
+/* ——— 幻灯片内容渲染样式 ——— */
+
 /* 画布容器 - 强制 16:9 比例 */
 .slide-canvas {
   position: relative;
@@ -150,4 +248,61 @@
 
 .slide-thumbnail .slide-split-content {
   font-size: clamp(5px, 0.9vw, 8px);
+}
+
+/* ——— 导航与状态指示器 ——— */
+
+/* 底部页码导航栏 */
+.slide-nav-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 5;
+}
+
+/* 生成中状态指示器 */
+.loading-indicator {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3B82F6;
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+  white-space: nowrap;
+}
+
+/* 错误状态指示器 */
+.error-indicator {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fee2e2;
+  color: #ef4444;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 5;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

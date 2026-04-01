@@ -103,7 +103,7 @@ function renderEl(
           ...style,
           display: "flex",
           alignItems,
-          fontFamily: '"PingFang SC", "Microsoft YaHei", sans-serif',
+          fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif',
           fontSize: el.fontSize ?? 16,
           fontWeight: el.fontWeight === "bold" ? 700 : 400,
           color,
