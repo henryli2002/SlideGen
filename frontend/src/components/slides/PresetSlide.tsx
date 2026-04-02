@@ -175,8 +175,8 @@ export function PresetSlide({ layout, data, theme }: Props) {
   const sorted = [...preset.elements].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
 
   return (
-    // 外层负责撑满父容器并裁剪溢出内容
-    <div ref={containerRef} style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+    // 外层负责撑满父容器、裁剪溢出并渲染主题背景色
+    <div ref={containerRef} style={{ position: "absolute", inset: 0, overflow: "hidden", background: bgColor }}>
       {/* 内层始终为 VIRTUAL_W×VIRTUAL_H，通过 scale 缩放适配容器 */}
       <div
         style={{

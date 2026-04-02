@@ -13,10 +13,8 @@ export function ExportButton({ presentation, disabled }: Props) {
 
   const handleExport = async () => {
     if (isExporting || presentation.slides.length === 0) return;
-
     setIsExporting(true);
     setError("");
-
     try {
       await downloadPPTX(presentation, "presentation.pptx");
     } catch (e) {
@@ -33,25 +31,15 @@ export function ExportButton({ presentation, disabled }: Props) {
       <button
         onClick={handleExport}
         disabled={isDisabled}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          background: isDisabled ? "#e5e7eb" : "#3B82F6",
-          color: isDisabled ? "#9ca3af" : "#ffffff",
-          border: "none",
-          borderRadius: 8,
-          padding: "8px 20px",
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: isDisabled ? "not-allowed" : "pointer",
-          transition: "background 0.15s",
-        }}
+        className="btn btn-primary"
+        style={{ padding: "7px 18px", fontSize: 13 }}
       >
-        {isExporting ? "导出中..." : "⬇ 导出 PPTX"}
+        {isExporting
+          ? <><span style={{ display: "inline-block", animation: "spin 0.8s linear infinite" }}>↻</span> 导出中…</>
+          : "↓ 导出 PPTX"}
       </button>
       {error && (
-        <span style={{ fontSize: 12, color: "#ef4444" }}>{error}</span>
+        <span style={{ fontSize: 12, color: "var(--red)", fontWeight: 500 }}>{error}</span>
       )}
     </div>
   );

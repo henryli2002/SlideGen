@@ -10,17 +10,19 @@ import { ExportButton } from "./components/ExportButton";
 import "./styles/slides.css";
 
 const globalStyle = `
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
-    background: #f0f2f5;
+    font-family: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", -apple-system, sans-serif;
+    background: #f0f4f8;
     height: 100vh;
     overflow: hidden;
+    color: #0f172a;
   }
   #root { height: 100vh; }
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: #f1f5f9; }
-  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 `;
 
 type Theme = "default" | "dark" | "corporate";
@@ -30,6 +32,8 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [theme, setTheme] = useState<Theme>("default");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // 换页时短暂淡出纸张，营造丝滑切换感
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const canvasRef = useRef<FabricCanvasRef>(null);
   const prevSlidesLenRef = useRef(0);
   const viewportRef = useRef<HTMLElement>(null);
@@ -43,33 +47,37 @@ export default function App() {
     prevSlidesLenRef.current = slides.length;
   }, [slides.length, status]);
 
-  // 过渡动画期间持续触发 canvas resize，实现平滑缩放
+  // 过渡动画期间持续触发 canvas resize，确保 Fabric.js 平滑缩放
   const animateResize = useCallback(() => {
     canvasRef.current?.triggerResize();
     rafRef.current = requestAnimationFrame(animateResize);
   }, []);
 
-  // 侧边栏切换时启动动画帧循环，过渡结束后停止
   useEffect(() => {
-    // 启动 rAF 循环，持续触发 resize
     rafRef.current = requestAnimationFrame(animateResize);
-
     const viewport = viewportRef.current;
     const handleTransitionEnd = (e: TransitionEvent) => {
       if (e.propertyName === "padding-right") {
         cancelAnimationFrame(rafRef.current);
-        // 最终精确 resize
         canvasRef.current?.triggerResize();
       }
     };
-
     viewport?.addEventListener("transitionend", handleTransitionEnd);
-
     return () => {
       cancelAnimationFrame(rafRef.current);
       viewport?.removeEventListener("transitionend", handleTransitionEnd);
     };
   }, [isSidebarOpen, animateResize]);
+
+  // 切换页面时触发纸张淡出→淡入
+  const handleSelectSlide = useCallback((index: number) => {
+    if (index === currentIndex) return;
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setCurrentIndex(index);
+      setIsTransitioning(false);
+    }, 120);
+  }, [currentIndex]);
 
   const currentSlide = slides[currentIndex] ?? null;
 
@@ -83,42 +91,43 @@ export default function App() {
     <>
       <style>{globalStyle}</style>
       <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+
         {/* ===== 顶部导航栏 ===== */}
-        <header
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-            padding: "0 20px",
-            height: 56,
-            background: "#ffffff",
-            borderBottom: "1px solid #e5e7eb",
+        <header style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "0 20px",
+          height: 56,
+          background: "rgba(255,255,255,0.92)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          borderBottom: "1px solid #e2e8f0",
+          flexShrink: 0,
+          zIndex: 10,
+        }}>
+          {/* Logo */}
+          <div style={{
+            fontWeight: 800,
+            fontSize: 17,
+            background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            whiteSpace: "nowrap",
+            letterSpacing: "-0.02em",
             flexShrink: 0,
-            zIndex: 10,
-          }}
-        >
-          <div style={{ fontWeight: 700, fontSize: 18, color: "#3B82F6", whiteSpace: "nowrap" }}>
+          }}>
             SlideGen AI
           </div>
-          <InputPanel
-            status={status}
-            onGenerate={startGeneration}
-            onStop={stopGeneration}
-          />
+
+          <InputPanel status={status} onGenerate={startGeneration} onStop={stopGeneration} />
+
+          {/* 主题选择器 */}
           <select
             value={theme}
             onChange={(e) => setTheme(e.target.value as Theme)}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              fontSize: 13,
-              color: "#374151",
-              cursor: "pointer",
-              background: "#fff",
-              fontFamily: "inherit",
-              whiteSpace: "nowrap",
-            }}
+            className="theme-select"
           >
             <option value="default">默认主题</option>
             <option value="dark">深色主题</option>
@@ -127,36 +136,33 @@ export default function App() {
         </header>
 
         {/* ===== 主工作区 ===== */}
-        <main
-          className="workspace"
-          style={{
-            flex: 1,
+        <main style={{
+          flex: 1,
+          display: "flex",
+          overflow: "hidden",
+          position: "relative",
+        }}>
+
+          {/* ===== 左侧缩略图列表 ===== */}
+          <aside style={{
+            width: 160,
+            background: "#f8fafc",
+            borderRight: "1px solid #e2e8f0",
             display: "flex",
-            overflow: "hidden",
-            position: "relative",
-          }}
-        >
-          {/* 左侧缩略图列表 */}
-          <aside
-            style={{
-              width: 160,
-              background: "#f8fafc",
-              borderRight: "1px solid #e5e7eb",
-              display: "flex",
-              flexDirection: "column",
+            flexDirection: "column",
+            flexShrink: 0,
+          }}>
+            {/* 页数标题 */}
+            <div style={{
+              padding: "9px 10px 8px",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#94a3b8",
+              borderBottom: "1px solid #e2e8f0",
               flexShrink: 0,
-            }}
-          >
-            <div
-              style={{
-                padding: "10px 8px 6px",
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#9ca3af",
-                borderBottom: "1px solid #e5e7eb",
-                flexShrink: 0,
-              }}
-            >
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+            }}>
               共 {slides.length} 页
             </div>
             <div style={{ flex: 1, overflow: "hidden" }}>
@@ -164,12 +170,12 @@ export default function App() {
                 slides={slides}
                 currentIndex={currentIndex}
                 theme={theme}
-                onSelect={setCurrentIndex}
+                onSelect={handleSelectSlide}
               />
             </div>
           </aside>
 
-          {/* ===== 中央视口区域（桌面 + 纸张） ===== */}
+          {/* ===== 中央视口（桌面 + 纸张） ===== */}
           <section
             ref={viewportRef}
             className={`canvas-viewport${isSidebarOpen ? " sidebar-open" : ""}`}
@@ -177,40 +183,42 @@ export default function App() {
             {/* 生成中指示器 */}
             {status === "loading" && (
               <div className="loading-indicator">
-                <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span>
-                AI 正在生成中...
+                <div className="loading-dots">
+                  <span /><span /><span />
+                </div>
+                AI 正在生成中
               </div>
             )}
 
             {/* 错误指示器 */}
             {status === "error" && (
               <div className="error-indicator">
-                {errorMessage || "发生错误，请重试"}
+                ⚠ {errorMessage || "发生错误，请重试"}
               </div>
             )}
 
             {/* 白色纸张 —— Fabric.js 画布的物理边界 */}
-            <div className="slide-paper">
+            <div className={`slide-paper${isTransitioning ? " transitioning" : ""}`}>
               <FabricCanvas ref={canvasRef} slide={currentSlide} theme={theme} />
             </div>
 
-            {/* 底部页码导航 */}
+            {/* 底部页码导航（玻璃态胶囊） */}
             {slides.length > 0 && (
               <div className="slide-nav-bar">
                 <button
-                  onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                  className="nav-btn"
+                  onClick={() => handleSelectSlide(Math.max(0, currentIndex - 1))}
                   disabled={currentIndex === 0}
-                  style={navBtnStyle(currentIndex === 0)}
                 >
                   ‹
                 </button>
-                <span style={{ fontSize: 13, color: "#6b7280", minWidth: 60, textAlign: "center" }}>
+                <span className="nav-label">
                   {currentIndex + 1} / {slides.length}
                 </span>
                 <button
-                  onClick={() => setCurrentIndex((i) => Math.min(slides.length - 1, i + 1))}
+                  className="nav-btn"
+                  onClick={() => handleSelectSlide(Math.min(slides.length - 1, currentIndex + 1))}
                   disabled={currentIndex === slides.length - 1}
-                  style={navBtnStyle(currentIndex === slides.length - 1)}
                 >
                   ›
                 </button>
@@ -239,61 +247,49 @@ export default function App() {
 
           {/* ===== 右侧编辑抽屉 ===== */}
           <aside className={`edit-drawer${isSidebarOpen ? "" : " closed"}`}>
-            <div
-              style={{
-                padding: "12px 16px",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#374151",
-                borderBottom: "1px solid #e5e7eb",
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
+            <div style={{
+              padding: "10px 16px",
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#0f172a",
+              borderBottom: "1px solid #e2e8f0",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              letterSpacing: "-0.01em",
+            }}>
               <span>编辑内容</span>
               <button
                 onClick={() => setIsSidebarOpen(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: 16,
-                  color: "#9ca3af",
-                  padding: "2px 4px",
-                  borderRadius: 4,
-                  lineHeight: 1,
-                }}
+                className="btn btn-ghost"
+                style={{ padding: "3px 6px", fontSize: 14, borderRadius: 6 }}
               >
                 ✕
               </button>
             </div>
             <div style={{ flex: 1, overflow: "auto" }}>
-              <EditForm
-                slide={currentSlide}
-                onUpdate={updateSlide}
-              />
+              <EditForm slide={currentSlide} onUpdate={updateSlide} />
             </div>
           </aside>
         </main>
 
         {/* ===== 底部工具栏 ===== */}
-        <footer
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0 20px",
-            height: 48,
-            background: "#ffffff",
-            borderTop: "1px solid #e5e7eb",
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: 13, color: "#9ca3af" }}>
+        <footer style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 20px",
+          height: 48,
+          background: "rgba(255,255,255,0.92)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          borderTop: "1px solid #e2e8f0",
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 500 }}>
             {slides.length > 0
-              ? `共 ${slides.length} 页幻灯片${status === "done" ? "，生成完成" : ""}`
+              ? `共 ${slides.length} 页幻灯片${status === "done" ? " · 生成完成" : ""}`
               : "准备就绪"}
           </span>
           <ExportButton
@@ -304,17 +300,4 @@ export default function App() {
       </div>
     </>
   );
-}
-
-function navBtnStyle(disabled: boolean): React.CSSProperties {
-  return {
-    padding: "4px 12px",
-    borderRadius: 4,
-    border: "1px solid #e5e7eb",
-    background: disabled ? "#f9fafb" : "#ffffff",
-    color: disabled ? "#d1d5db" : "#374151",
-    fontSize: 16,
-    cursor: disabled ? "not-allowed" : "pointer",
-    fontFamily: "inherit",
-  };
 }

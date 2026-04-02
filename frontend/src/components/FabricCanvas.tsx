@@ -87,7 +87,8 @@ const FabricCanvas = forwardRef<FabricCanvasRef, FabricCanvasProps>(
       };
     }, []);
 
-    // 主题变更时更新背景色
+    // 主题变更时更新背景色（不清除对象，仅刷新背景）
+    // slide+theme 联合 effect 会负责重新渲染所有对象
     useEffect(() => {
       if (!fabricRef.current) return;
       const colors = THEME_COLORS[theme] || THEME_COLORS.default;
@@ -103,8 +104,10 @@ const FabricCanvas = forwardRef<FabricCanvasRef, FabricCanvasProps>(
       const canvas = fabricRef.current;
       const colors = THEME_COLORS[theme] || THEME_COLORS.default;
 
-      canvas.backgroundColor = colors.bg;
+      // 注意：Fabric.js v6 的 canvas.clear() 会将 backgroundColor 重置为 ''
+      // 因此必须在 clear() 之后才能设置背景色
       canvas.clear();
+      canvas.backgroundColor = colors.bg;
 
       const objects = semanticToFabricObjects(slide, theme);
 
