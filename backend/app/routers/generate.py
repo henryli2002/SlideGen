@@ -11,7 +11,7 @@ import asyncio
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.schemas.slide_schema import AIPPTSlide
 from app.services import llm_service
@@ -24,11 +24,28 @@ router = APIRouter()
 _semaphore = asyncio.Semaphore(5)
 
 
+class OutlineRequest(BaseModel):
+    topic: str
+    language: str = "中文"
+
+
+@router.post("/api/generate_outline")
+async def generate_outline(req: OutlineRequest):
+    """
+    生成演示文稿大纲（Markdown 格式，非流式）。
+
+    前端展示给用户确认/编辑后，再调用 generate_stream 生成完整幻灯片。
+    """
+    outline_md = await llm_service.generate_outline(req.topic, req.language)
+    return {"outline": outline_md}
+
+
 @router.get("/api/generate_stream")
 async def generate_stream(
     topic: str = Query(..., max_length=200, description="演示文稿主题"),
     num_slides: int = Query(default=12, ge=6, le=30, description="幻灯片页数（含封面，默认 12 页）"),
     template_id: str = Query(default="default", description="模板 ID（预留：未来支持多模板）"),
+    outline: str = Query(default="", description="已确认的大纲 Markdown（可选，提供后按大纲生成）"),
 ):
     """
     流式生成幻灯片内容（PPTist AIPPT 格式）。
@@ -45,7 +62,7 @@ async def generate_stream(
         async with _semaphore:
             try:
                 page_index = 0
-                async for slide_json in llm_service.stream_slides(topic, num_slides):
+                async for slide_json in llm_service.stream_slides(topic, num_slides, outline):
                     try:
                         validated = AIPPTSlide.model_validate_json(slide_json)
                         payload = {
