@@ -1,119 +1,130 @@
-# AI PPT 生成系统 — Claude Code 项目初始化指令 (v2.0)
+# SlideGen — AI PPT 生成系统 开发指令 (v3.0)
 
-> **使用方式：** 将本文件作为 Claude Code 的 CLAUDE.md 放在项目根目录，或在对话开始时将全文提供给 AI 指令。本文件定义了系统的核心架构、数据契约及开发规范。
+> **使用方式：** 将本文件作为 Claude/Gemini Code 的内置指令放在项目根目录。本文件定义了系统 v3.0 的核心架构、数据契约及开发规范。
 
 ---
 
 ## 一、项目概述
 
-SlideGen 是一个 **AI 驱动的演示文稿生成器**。用户输入主题，系统通过 LLM 实时流式生成内容，并采用“两步生成法”实现高精度的幻灯片渲染及导出。
+SlideGen 已经全面迁移至 **PPTist 开源演示引擎**。该架构将"内容生成"与"排版渲染"彻底解耦：
+后端 LLM 负责生成标准的知识结构内容（AIPPT 格式）；渲染、模板匹配、富文本编辑及 PPTX 原生导出，全权交由前端的 PPTist 引擎处理。
 
 **技术栈：**
-- **前端**：React 18 + Vite + TypeScript + Tailwind CSS
-- **后端**：Python 3.10+ + FastAPI
-- **通信**：SSE（Server-Sent Events）
-- **核心协议**：JSON Schema v2.0（基于预设模板 + 变量填充）
-- **导出**：python-pptx（绝对坐标物理渲染）
+- **前端**：Vue 3 + Vite + TypeScript + Pinia
+- **PPT引擎**：[PPTist](https://github.com/pipipi-pikachu/PPTist) (Canvas 混合渲染)
+- **后端**：Python 3.10+ + FastAPI + Pydantic
+- **连接层**：SSE (Server-Sent Events) 单向流式传输
+- **LLM 双引擎**：OpenAI 兼容接口 (DeepSeek/Moonshot) + Gemini API
 
 **项目结构：**
 ```
 project-root/
-├── README.md              # 项目快照与快速开始
-├── CLAUDE.md              # 本文件（AI 开发指令）
-├── frontend/              # 移动优先的 React 前端
+├── README.md              # 项目快照与架构说明
+├── CLAUDE.md              # 本文件（开发指令）
+├── frontend/              # PPTist 前端引擎代码
 │   ├── src/
 │   │   ├── types/
-│   │   │   └── schema.ts           # v2.0 核心类型定义
-│   │   ├── components/
-│   │   │   ├── SlideCanvas.tsx      # 16:9 画布容器
-│   │   │   ├── SlideRenderer.tsx    # 模板分发器
-│   │   │   ├── elements/            # Text, Shape, Icon 原子组件
-│   │   │   └── slides/              # 各布局预设的 UI 实现
-│   │   └── hooks/
-│   │       └── useSSE.ts           # 接收流式数据
+│   │   │   └── AIPPT.ts            # AIPPT 的数据接口定义
+│   │   ├── hooks/
+│   │   │   └── useAIPPT.ts         # 将后端 SSE 响应映射至模板的钩子
+│   │   ├── services/
+│   │   │   └── index.ts            # 后端 API 连接点 (生成流式请求在此处发起)
+│   │   └── views/Editor/
+│   │       └── AIPPTDialog.vue     # AI 生成面板界面
 ├── backend/
 │   ├── app/
-│   │   ├── routers/                # generate/export 路由
+│   │   ├── main.py                 # FastAPI 入口
+│   │   ├── routers/
+│   │   │   └── generate.py         # /api/generate_stream SSE 流式接口
 │   │   ├── services/
-│   │   │   ├── llm_service.py       # 双引擎 LLM 调用 (OpenAI/Gemini)
-│   │   │   └── pptx_service.py      # 绝对坐标导出逻辑
-│   │   ├── prompts/
-│   │   │   └── system_prompt.py     # v2.0 模板变量 Prompt
-│   │   └── layout_presets/         # 布局预设定义 (JSON)
-└── start.sh                # 一键启动脚本
+│   │   │   └── llm_service.py      # 大模型提示词构建与执行
+│   │   └── schemas/
+│   │       └── slide_schema.py     # AIPPT Pydantic 校验模型
+└── start.sh               # 环境启动脚本
 ```
 
 ---
 
-## 二、核心数据契约 (v2.0 Schema)
+## 二、核心数据契约 (AIPPT Schema v3.0)
 
-系统不再使用硬编码的布局字段，而是通过 `layout` 指向预设名称，通过 `data` 提供填充内容。
+与老版本传输绝对坐标或复杂的 `layout_preset` 键值对不同，v3.0 采用极简的语义流格式。
+后端生成的每一块数据必须严格遵循这 **5** 种语义 `type` 的其中一种：
 
-### 2.1 TypeScript 定义 (`frontend/src/types/schema.ts`)
-```typescript
-export interface Presentation {
-  schemaVersion: "2.0";
-  theme: "default" | "dark" | "corporate";
-  slides: Slide[];
-}
-
-export interface Slide {
-  id: string;
-  layout: "cover_centered" | "bullets_icon_list" | "stats_three_column" | ...;
-  data: Record<string, string>; // 平铺键值对，对应模板中的 {{variable}}
+### 1. Cover (封面 - 第1页)
+```json
+{
+  "type": "cover",
+  "data": { "title": "标题", "text": "副标题简介" }
 }
 ```
 
-### 2.2 后端模型 (`backend/app/schemas/slide_schema.py`)
-```python
-class SlidePayload(BaseModel):
-    layout: str
-    data: dict[str, str]
+### 2. Contents (目录 - 第2页)
+```json
+{
+  "type": "contents",
+  "data": { "items": ["章节1", "章节2", "章节3"] }
+}
+```
 
-class PresentationPayload(BaseModel):
-    schemaVersion: str = "2.0"
-    slides: list[SlidePayload]
+### 3. Transition (章节过渡 - 夹在各章节中)
+```json
+{
+  "type": "transition",
+  "data": { "title": "章节标题", "text": "本章节内容概括" }
+}
+```
+
+### 4. Content (内容页 - 属于具体章节中)
+```json
+{
+  "type": "content",
+  "data": {
+    "title": "当前页面顶上的的大标题",
+    "items": [
+      { "title": "要点1", "text": "要点详情" },
+      { "title": "要点2", "text": "要点详情" }
+    ]
+  }
+}
+```
+*注：原则上每页 `Content` 页面建议包含 2-4 个 `items`，避免过于拥挤。*
+
+### 5. End (结束页 - 最后1页)
+```json
+{
+  "type": "end"
+}
 ```
 
 ---
 
-## 三、LLM 交互规范
+## 三、通信协议
 
-### 3.1 提示词策略 (System Prompt)
-大模型 **不负责计算坐标**，只负责：
-1. **语义理解**：根据主题选择最合适的布局预设。
-2. **内容生成**：为选定的布局生成结构化填充数据（Fills）。
-3. **格式约束**：强制输出以 `---SLIDE_BREAK---` 分隔的纯 JSON 块。
+后端 `generate.py` 会将 `slide_schema.py` 验证通过的具体项作为 `slide` 属性，以 JSON 行格式通过 Data 推给前端。
 
-### 3.2 布局白名单
-开发新功能时，必须同时更新 `system_prompt.py` 和前端 `SlideRenderer.tsx` 以支持新的布局 ID（如 `timeline_horizontal`, `quote_centered` 等）。
-
----
-
-## 四、核心实现逻辑
-
-### 4.1 SSE 流式处理
-- 前端使用 `fetch` + `ReadableStream` 接收数据。
-- 后端 `llm_service.py` 负责在 LLM 输出流中解析分隔符，逐个推送完整的 Slide JSON。
-
-### 4.2 PPTX 绝对坐标导出
-- 导出引擎将 960x540 的虚拟坐标系等比映射到 PPT 的物理尺寸。
-- 使用 `python-pptx` 的 `add_textbox` 和 `add_shape` 在空白母版上直接绘图，不依赖幻灯片占位符。
+**SSE 通信格式样例：**
+```
+data: {"status": "generating", "slide": {"type": "cover", "data": {...}}, "index": 0, "templateId": "default"}
+...
+data: {"status": "done", "total": 12, "templateId": "default"}
+```
+前端在 `AIPPTDialog.vue` 中解析 `payload.slide` 并传递给 `useAIPPT.ts`。
 
 ---
 
-## 五、编码规范与约束
+## 四、开发与修改规范
 
-- **通用**：注释使用中文，变量名使用英文。
-- **前端**：使用函数式组件与 Hooks；UI 必须适配 16:9 比例锁定；所有图标使用 Lucide React。
-- **后端**：严格执行 Pydantic 校验；LLM 异常必须捕获并以 SSE 错误事件告知前端。
-- **文件限制**：单个文件尽量控制在 200 行以内，逻辑复杂的 Service 需拆分子模块。
+1. **不可破坏引擎结构**：`frontend` 基本上是在 [PPTist](https://github.com/pipipi-pikachu/PPTist) 开源引擎上的客制化。如果有核心功能需要补充，尽量通过 `hooks` 或者独立的 API 层封装，谨慎大幅重构其渲染器代码，否则会导致上游合并困难或原生内置模板断层。
+2. **后端的纯净化**：后端绝对不允许引入 `python-pptx` 等依赖或处理任何前端布局。后端的最终诉求有且只有：输出稳定、高质量的含有上述 5 种类型的 JSON。
+3. **不要使用 Fabric.js**：如果旧记录中提到 Fabric.js 或者 React，代表那是已废纸篓的过时文档。
+4. **验证必测**：所有新增 LLM 功能（比如扩写/精写）要验证其解析在 Vue 层是否抛错。
 
 ---
 
-## 六、开发路线 ( Roadmap 2.0 )
-1. [x] **基础设施**：SSE + 两步生成架构。
-2. [x] **模板扩展**：实现 10+ 核心布局适配。
-3. [x] **交互增强**：Fabric.js 实现画布元素选中与基本拖拽。
-4. [ ] **高级视觉**：接入 Unsplash API 实现 AI 图片搜索与配图。
-5. [ ] **主题系统**：支持颜色主题包的动态映射。
+## 五、v3.0 里程碑 (Roadmap)
+
+- [x] **后端重构**：移除 Python-pptx，重写 Pydantic 与生成路由。
+- [x] **引入 PPTist**：替换陈旧的 React 画布，Vue 3 接管前端底座。
+- [x] **前后端桥接**：调整 `AIPPTDialog` 对接本地 `/api/generate_stream`。
+- [ ] **多模板支持**：允许后端或用户手动定义更丰富的 templateId 进行风格预渲染。
+- [ ] **图片注入 (RAG/API search)**：在 `Content` 页面的 JSON 扩充网络可请求 `imageUrl` 并在前端展现。

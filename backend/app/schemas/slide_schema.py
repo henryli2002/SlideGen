@@ -1,35 +1,52 @@
+"""
+Pydantic 数据模型 — 适配 PPTist AIPPT 格式
+
+类型参考：https://github.com/pipipi-pikachu/PPTist/blob/master/src/types/AIPPT.ts
+"""
+
 from pydantic import BaseModel
-from typing import Literal
-from enum import Enum
+from typing import Literal, Optional
 
 
-class LayoutType(str, Enum):
-    # 封面类
-    COVER_CENTERED = "cover_centered"
-    COVER_LEFT_BOLD = "cover_left_bold"
-    CLOSING_CTA = "closing_cta"
-    # 章节类
-    SECTION_DIVIDER = "section_divider"
-    # 要点类
-    BULLETS_ICON_LIST = "bullets_icon_list"
-    BULLETS_CARD_GRID = "bullets_card_grid"
-    # 数据类
-    STATS_THREE_COLUMN = "stats_three_column"
-    TIMELINE_HORIZONTAL = "timeline_horizontal"
-    # 内容类
-    SPLIT_TWO_COLUMN = "split_two_column"
-    QUOTE_CENTERED = "quote_centered"
+class AIPPTContentItem(BaseModel):
+    """内容页中的单个条目"""
+    title: str
+    text: str
 
 
-class SlidePayload(BaseModel):
-    layout: LayoutType
-    # 平铺的模板变量键值对，与各 layout_presets JSON 中 {{variable}} 一一对应
-    data: dict[str, str]
+class AIPPTSlide(BaseModel):
+    """
+    单页幻灯片（SSE 流式推送单元）。
+    type 决定页面类型，data 的结构随 type 变化。
+    """
+    type: Literal["cover", "contents", "transition", "content", "end"]
+    data: Optional[dict] = None
 
-    model_config = {"populate_by_name": True}
+
+# ===== 以下为具体类型的严格校验版本（供后续精细校验使用） =====
+
+class AIPPTCover(BaseModel):
+    type: Literal["cover"]
+    data: dict  # {"title": str, "text": str}
 
 
-class PresentationPayload(BaseModel):
-    schemaVersion: str = "1.0"
-    theme: Literal["default", "dark", "corporate"] = "default"
-    slides: list[SlidePayload]
+class AIPPTContents(BaseModel):
+    type: Literal["contents"]
+    data: dict  # {"items": list[str]}
+    offset: Optional[int] = None
+
+
+class AIPPTTransition(BaseModel):
+    type: Literal["transition"]
+    data: dict  # {"title": str, "text": str}
+
+
+class AIPPTContent(BaseModel):
+    type: Literal["content"]
+    data: dict  # {"title": str, "items": list[{"title": str, "text": str}]}
+    offset: Optional[int] = None
+
+
+class AIPPTEnd(BaseModel):
+    type: Literal["end"]
+    data: Optional[dict] = None

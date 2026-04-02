@@ -1,16 +1,59 @@
+import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import vue from '@vitejs/plugin-vue'
+import Icons from 'unplugin-icons/vite'
+import { FileSystemIconLoader } from 'unplugin-icons/loaders'
+import IconsResolver from 'unplugin-icons/resolver'
+import Components from 'unplugin-vue-components/vite'
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  base: '',
+  plugins: [
+    vue(),
+    Components({
+      dirs: [],
+      resolvers: [
+        IconsResolver({
+          prefix: 'i',
+          customCollections: ['custom'],
+        }),
+      ],
+    }),
+    Icons({
+      compiler: 'vue3',
+      autoInstall: false, 
+      customCollections: {
+        custom: FileSystemIconLoader('src/assets/icons'),
+      },
+      scale: 1,
+      defaultClass: 'i-icon',
+    }),
+  ],
   server: {
-    // 代理 API 请求到后端
+    host: '127.0.0.1',
+    port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'https://server.pptist.cn',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       }
+    }
+  },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        additionalData: `
+          @import '@/assets/styles/variable.scss';
+          @import '@/assets/styles/mixin.scss';
+        `
+      },
+    },
+  },
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   }
 })
