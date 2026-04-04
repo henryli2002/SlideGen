@@ -78,12 +78,42 @@ async def search_images(
     return result
 
 
+@router.get("/api/generate_image")
+async def generate_image(
+    keyword: str = Query(..., description="图片关键词（英文），触发 Pexels → Gemini → 本地模型 → Picsum 降级链"),
+):
+    """
+    按关键词生成/搜索一张图片。
+    降级顺序：Pexels 搜图 → Gemini Imagen → 本地模型 → Picsum 保底。
+    """
+    result = await image_service.get_image_for_keyword(keyword)
+    return result
+
+
+class SlideImageRequest(BaseModel):
+    prompt: str
+    width: int
+    height: int
+
+
+@router.post("/api/generate_slide_image")
+async def generate_slide_image(req: SlideImageRequest):
+    """
+    Generate an image for a specific template slot.
+    Uses slide content as prompt and targets exact slot dimensions.
+    Frontend calls this after naturally selecting a template that has image slots.
+    """
+    result = await image_service.get_image_for_slide(req.prompt, req.width, req.height)
+    return result
+
+
 @router.get("/api/generate_stream")
 async def generate_stream(
     topic: str = Query(..., max_length=200, description="演示文稿主题"),
     num_slides: int = Query(default=12, ge=6, le=30, description="幻灯片页数（含封面，默认 12 页）"),
     template_id: str = Query(default="default", description="模板 ID（预留：未来支持多模板）"),
     outline: str = Query(default="", description="已确认的大纲 Markdown（可选，提供后按大纲生成）"),
+    enable_image: bool = Query(default=False, description="是否启用 AI 配图（含 imageKeyword 生成与图片解析）"),
 ):
     """
     流式生成幻灯片内容（PPTist AIPPT 格式）。
@@ -100,16 +130,10 @@ async def generate_stream(
         async with _semaphore:
             try:
                 page_index = 0
-                async for slide_json in llm_service.stream_slides(topic, num_slides, outline):
+                async for slide_json in llm_service.stream_slides(topic, num_slides, outline, enable_image):
                     try:
                         validated = AIPPTSlide.model_validate_json(slide_json)
                         slide_data = validated.model_dump()
-
-                        # 将 imageKeyword 解析为真实图片 URL（Pexels → Gemini → 本地 → Picsum）
-                        if slide_data["type"] == "content" and isinstance(slide_data.get("data"), dict):
-                            keyword = slide_data["data"].pop("imageKeyword", None)
-                            if keyword:
-                                slide_data["data"]["imageUrl"] = await image_service.get_image_for_keyword(keyword)
 
                         payload = {
                             "status": "generating",

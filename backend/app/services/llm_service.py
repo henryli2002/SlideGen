@@ -406,7 +406,7 @@ async def _ai_writing_gemini(system_prompt: str, content: str) -> AsyncGenerator
             yield delta
 
 
-async def stream_slides(topic: str, num_slides: int, outline: str = "") -> AsyncGenerator[str, None]:
+async def stream_slides(topic: str, num_slides: int, outline: str = "", enable_image: bool = False) -> AsyncGenerator[str, None]:
     """
     流式生成幻灯片 JSON 字符串（PPTist AIPPT 格式）。
 
@@ -422,13 +422,13 @@ async def stream_slides(topic: str, num_slides: int, outline: str = "") -> Async
         return
 
     provider = os.getenv("LLM_PROVIDER", "openai").lower()
-    logger.info(f"调用 [{provider}] 生成幻灯片，主题：{topic}，页数：{num_slides}，大纲：{'有' if outline else '无'}")
+    logger.info(f"调用 [{provider}] 生成幻灯片，主题：{topic}，页数：{num_slides}，大纲：{'有' if outline else '无'}，配图：{'开' if enable_image else '关'}")
 
     if provider == "gemini":
-        async for slide_json in _stream_gemini_slides(topic, num_slides, outline):
+        async for slide_json in _stream_gemini_slides(topic, num_slides, outline, enable_image):
             yield slide_json
     else:
-        async for slide_json in _stream_openai_slides(topic, num_slides, outline):
+        async for slide_json in _stream_openai_slides(topic, num_slides, outline, enable_image):
             yield slide_json
 
 
@@ -460,10 +460,10 @@ def _parse_buffer(buffer: str):
     return results, buffer
 
 
-async def _stream_openai_slides(topic: str, num_slides: int, outline: str = "") -> AsyncGenerator[str, None]:
+async def _stream_openai_slides(topic: str, num_slides: int, outline: str = "", enable_image: bool = False) -> AsyncGenerator[str, None]:
     """调用 OpenAI 兼容 API（OpenAI / DeepSeek / Moonshot / 通义千问等）"""
     import openai
-    from app.prompts.system_prompt import SYSTEM_PROMPT, SYSTEM_PROMPT_WITH_OUTLINE
+    from app.prompts.system_prompt import build_system_prompt, build_system_prompt_with_outline
 
     client = openai.AsyncOpenAI(
         api_key=os.getenv("LLM_API_KEY"),
@@ -471,12 +471,10 @@ async def _stream_openai_slides(topic: str, num_slides: int, outline: str = "") 
     )
 
     if outline:
-        system_content = SYSTEM_PROMPT_WITH_OUTLINE.format(
-            topic=topic, num_slides=num_slides, outline=outline
-        )
+        system_content = build_system_prompt_with_outline(topic, num_slides, outline, enable_image)
         user_content = f"请严格按照已确认的大纲，为主题「{topic}」生成约 {num_slides} 页幻灯片。"
     else:
-        system_content = SYSTEM_PROMPT.format(topic=topic, num_slides=num_slides)
+        system_content = build_system_prompt(topic, num_slides, enable_image)
         user_content = f"请为主题「{topic}」生成约 {num_slides} 页幻灯片。"
 
     response = await client.chat.completions.create(
@@ -507,23 +505,23 @@ async def _stream_openai_slides(topic: str, num_slides: int, outline: str = "") 
             logger.warning(f"最后一页 JSON 解析失败: {e}")
 
 
-async def _stream_gemini_slides(topic: str, num_slides: int, outline: str = "") -> AsyncGenerator[str, None]:
+async def _stream_gemini_slides(topic: str, num_slides: int, outline: str = "", enable_image: bool = False) -> AsyncGenerator[str, None]:
     """调用 Google Gemini API"""
     from google import genai
     from google.genai import types
-    from app.prompts.system_prompt import SYSTEM_PROMPT, SYSTEM_PROMPT_WITH_OUTLINE
+    from app.prompts.system_prompt import build_system_prompt, build_system_prompt_with_outline
 
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
     if outline:
-        base_prompt = SYSTEM_PROMPT_WITH_OUTLINE.format(
-            topic=topic, num_slides=num_slides, outline=outline
+        prompt = (
+            build_system_prompt_with_outline(topic, num_slides, outline, enable_image)
+            + f"\n\n请严格按照已确认的大纲，为主题「{topic}」生成约 {num_slides} 页幻灯片。"
         )
-        prompt = base_prompt + f"\n\n请严格按照已确认的大纲，为主题「{topic}」生成约 {num_slides} 页幻灯片。"
     else:
         prompt = (
-            SYSTEM_PROMPT.format(topic=topic, num_slides=num_slides)
+            build_system_prompt(topic, num_slides, enable_image)
             + f"\n\n请为主题「{topic}」生成约 {num_slides} 页幻灯片。"
         )
 

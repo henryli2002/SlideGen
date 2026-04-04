@@ -40,35 +40,90 @@ def _local_image_url() -> str:
 
 # ─── 公共入口 ────────────────────────────────────────────────
 
-async def get_image_for_keyword(keyword: str) -> str:
+async def get_image_for_keyword(keyword: str) -> dict:
     """
     按优先级获取与关键词相关的图片 URL。
-    始终返回可用 URL（最差情况返回 Picsum 随机图）。
+    返回 {"url": ..., "source": "pexels"|"gemini"|"local"|"picsum", "failed": [...]}。
     """
+    failed: list[str] = []
+
     # 1. Pexels 搜索
     if _pexels_key():
         url = await _pexels_search(keyword)
         if url:
             logger.debug(f"图片来源：Pexels [{keyword}]")
-            return url
+            return {"url": url, "source": "pexels", "failed": []}
+        failed.append("Pexels")
 
     # 2. Gemini Imagen 生成
     if _gemini_key():
         url = await _gemini_generate(keyword)
         if url:
             logger.debug(f"图片来源：Gemini Imagen [{keyword}]")
-            return url
+            return {"url": url, "source": "gemini", "failed": failed}
+        failed.append("Gemini")
 
     # 3. 本地模型
     if _local_image_url():
         url = await _local_generate(keyword)
         if url:
             logger.debug(f"图片来源：本地模型 [{keyword}]")
-            return url
+            return {"url": url, "source": "local", "failed": failed}
+        failed.append("本地模型")
 
-    # 4. Picsum 保底（基于关键词生成确定性随机图）
-    logger.debug(f"图片来源：Picsum 保底 [{keyword}]")
-    return _picsum_url(keyword)
+    # 4. Picsum 保底
+    logger.debug(f"图片来源：Picsum [failed={failed}] [{keyword}]")
+    return {"url": _picsum_url(keyword), "source": "picsum", "failed": failed}
+
+
+async def get_image_for_slide(prompt: str, width: int, height: int) -> dict:
+    """
+    Generate an image sized to exactly match a template slot (width × height).
+
+    Priority: Pexels (keyword extracted from prompt) → Gemini (full prompt, aspect-ratio hint)
+              → local model → Picsum (exact pixel dimensions).
+
+    Returns {"url": ..., "source": ..., "failed": [...]}.
+    """
+    failed: list[str] = []
+    # Extract a short keyword from the prompt for Pexels / Picsum seed
+    keyword = prompt.split(".")[0].split(":")[1].strip() if ":" in prompt else prompt.split(",")[0][:40]
+
+    # 1. Pexels — search with keyword, prefer matching orientation
+    if _pexels_key():
+        orientation = "landscape" if width >= height else "portrait"
+        url = await _pexels_search(keyword, orientation=orientation)
+        if url:
+            return {"url": url, "source": "pexels", "failed": []}
+        failed.append("Pexels")
+
+    # 2. Gemini — use rich prompt with aspect-ratio hint
+    if _gemini_key():
+        ratio_hint = _aspect_ratio_hint(width, height)
+        full_prompt = f"{prompt} Aspect ratio: {ratio_hint}."
+        url = await _gemini_generate_with_prompt(full_prompt)
+        if url:
+            return {"url": url, "source": "gemini", "failed": failed}
+        failed.append("Gemini")
+
+    # 3. Local model
+    if _local_image_url():
+        url = await _local_generate_sized(prompt, width, height)
+        if url:
+            return {"url": url, "source": "local", "failed": failed}
+        failed.append("本地模型")
+
+    # 4. Picsum — exact pixel dimensions
+    from urllib.parse import quote
+    seed = quote(keyword.lower().replace(" ", "-"))
+    source = "picsum_no_api" if not failed else "picsum"
+    return {"url": f"https://picsum.photos/seed/{seed}/{width}/{height}", "source": source, "failed": failed}
+
+
+def _aspect_ratio_hint(width: int, height: int) -> str:
+    ratio = width / height
+    candidates = {"1:1": 1.0, "4:3": 4/3, "3:4": 3/4, "16:9": 16/9, "9:16": 9/16, "3:2": 3/2, "2:3": 2/3}
+    return min(candidates, key=lambda k: abs(candidates[k] - ratio))
 
 
 async def search_images(
@@ -114,14 +169,17 @@ async def search_images(
 
 # ─── 各级实现 ────────────────────────────────────────────────
 
-async def _pexels_search(keyword: str) -> str:
+async def _pexels_search(keyword: str, orientation: str = "landscape") -> str:
     """从 Pexels 搜索第一张图，返回 URL；失败返回空字符串。"""
     try:
+        params: dict = {"query": keyword, "per_page": 1}
+        if orientation != "all":
+            params["orientation"] = orientation
         async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.get(
                 f"{PEXELS_API_BASE}/search",
                 headers={"Authorization": _pexels_key()},
-                params={"query": keyword, "per_page": 1, "orientation": "landscape"},
+                params=params,
             )
             resp.raise_for_status()
             photos = resp.json().get("photos", [])
@@ -134,9 +192,8 @@ async def _pexels_search(keyword: str) -> str:
 
 async def _gemini_generate(keyword: str) -> str:
     """
-    使用 Gemini 图片生成模型生成图片，返回 base64 data URL；失败返回空字符串。
-    使用模型：gemini-2.0-flash-preview-image-generation
-    注：该功能需要 Google AI Studio API Key，且模型需支持图片生成能力。
+    使用 gemini-2.5-flash-image 生成图片（:generateContent 管道）。
+    返回 base64 data URL；失败返回空字符串。
     """
     try:
         import asyncio
@@ -146,12 +203,12 @@ async def _gemini_generate(keyword: str) -> str:
         client = genai.Client(api_key=_gemini_key())
         prompt = (
             f"A high-quality professional photograph suitable for a business presentation slide, "
-            f"topic: {keyword}. Clean composition, no text, suitable as a slide background or illustration."
+            f"topic: {keyword}. Clean composition, no text overlay, suitable as a slide illustration."
         )
 
         def _sync_generate():
             return client.models.generate_content(
-                model="gemini-2.0-flash-preview-image-generation",
+                model="gemini-2.5-flash-image",
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE"],
@@ -165,9 +222,53 @@ async def _gemini_generate(keyword: str) -> str:
                 mime = part.inline_data.mime_type or "image/jpeg"
                 b64 = base64.b64encode(part.inline_data.data).decode()
                 return f"data:{mime};base64,{b64}"
-
     except Exception as e:
         logger.warning(f"Gemini 图片生成失败: {e}")
+    return ""
+
+
+async def _gemini_generate_with_prompt(prompt: str) -> str:
+    """Gemini image generation with a custom full prompt."""
+    try:
+        import asyncio
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=_gemini_key())
+
+        def _sync_generate():
+            return client.models.generate_content(
+                model="gemini-2.5-flash-image",
+                contents=prompt,
+                config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
+            )
+
+        response = await asyncio.to_thread(_sync_generate)
+        for part in response.candidates[0].content.parts:
+            if part.inline_data and part.inline_data.data:
+                mime = part.inline_data.mime_type or "image/jpeg"
+                b64 = base64.b64encode(part.inline_data.data).decode()
+                return f"data:{mime};base64,{b64}"
+    except Exception as e:
+        logger.warning(f"Gemini 图片生成失败（全提示词）: {e}")
+    return ""
+
+
+async def _local_generate_sized(prompt: str, width: int, height: int) -> str:
+    """Call local image service with exact dimensions."""
+    base_url = _local_image_url()
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                f"{base_url}/generate",
+                json={"prompt": prompt, "width": width, "height": height},
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            if body.get("type") in ("url", "base64"):
+                return body["data"]
+    except Exception as e:
+        logger.warning(f"本地图片生成服务失败: {e}")
     return ""
 
 

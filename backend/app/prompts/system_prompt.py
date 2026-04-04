@@ -4,7 +4,15 @@ System Prompt for LLM — 输出 PPTist AIPPT 格式
 数据格式参考：https://github.com/pipipi-pikachu/PPTist/blob/master/src/types/AIPPT.ts
 """
 
-_SLIDE_TYPES_BLOCK = """
+_CONTENT_TYPE_BLOCK = """\
+### content（内容页 — 每个章节包含 1~3 个内容页）
+{{"type": "content", "data": {{"title": "页面标题(≤20字)", "items": [{{"title": "条目标题(≤15字)", "text": "条目描述(≤60字)"}}, ...]}}}}
+- 每页的 items 数量为 2~4 个"""
+
+
+def _build_slide_types_block(enable_image: bool = False) -> str:
+    content_block = _CONTENT_TYPE_BLOCK
+    return f"""
 ## 幻灯片类型（共 6 种）：
 
 ### cover（封面页 — 第一页必须用此类型）
@@ -16,10 +24,7 @@ _SLIDE_TYPES_BLOCK = """
 ### transition（章节过渡页 — 每个章节前使用）
 {{"type": "transition", "data": {{"title": "章节标题(≤15字)", "text": "本章概要(≤40字)"}}}}
 
-### content（内容页 — 每个章节包含 1~3 个内容页）
-{{"type": "content", "data": {{"title": "页面标题(≤20字)", "items": [{{"title": "条目标题(≤15字)", "text": "条目描述(≤60字)"}}, ...], "imageKeyword": "technology"}}}}
-- 每页的 items 数量为 2~4 个
-- imageKeyword 为**可选字段**，值为简短英文单词（如 technology / teamwork / finance / nature），仅在内容适合图文配合时填写，建议每章最多 1 页添加
+{content_block}
 
 ### table（数据表格页 — 适合数据对比、参数列表、评估矩阵等场景）
 {{"type": "table", "data": {{"title": "表格标题(≤20字)", "headers": ["列标题1(≤10字)", "列标题2(≤10字)", ...], "rows": [["值(≤15字)", "值(≤15字)", ...], ...]}}}}
@@ -30,16 +35,21 @@ _SLIDE_TYPES_BLOCK = """
 {{"type": "end"}}
 """
 
+
 _OUTPUT_RULES_BLOCK = """
 ## 输出格式规则（必须严格遵守）：
 1. 逐页输出，每页是一个独立的 JSON 对象，页与页之间用 `---SLIDE_BREAK---` 分隔。
 2. 不要输出任何 JSON 以外的文字、解释、Markdown 标记或代码围栏。
-3. 所有字符串值使用中文（imageUrl 的关键词除外）。
+3. 所有字符串值使用中文，imageKeyword 字段例外（必须用英文单词）。
 """
 
-SYSTEM_PROMPT = """
-你是一个专业的演示文稿内容架构师。用户会给你一个主题，你需要生成一组幻灯片内容。
-""" + _OUTPUT_RULES_BLOCK + _SLIDE_TYPES_BLOCK + """
+
+def build_system_prompt(topic: str, num_slides: int, enable_image: bool = False) -> str:  # enable_image unused, kept for compat
+    return (
+        "你是一个专业的演示文稿内容架构师。用户会给你一个主题，你需要生成一组幻灯片内容。"
+        + _OUTPUT_RULES_BLOCK
+        + _build_slide_types_block(enable_image)
+        + f"""
 ## 内容编排规则：
 - 第 1 页：必须是 cover
 - 第 2 页：必须是 contents（目录），items 列出所有章节标题
@@ -52,10 +62,17 @@ SYSTEM_PROMPT = """
 用户主题：{topic}
 生成总页数约：{num_slides}
 """
+    )
 
-SYSTEM_PROMPT_WITH_OUTLINE = """
-你是一个专业的演示文稿内容架构师。用户已确认了以下大纲结构，请严格按照该大纲生成幻灯片内容。
-""" + _OUTPUT_RULES_BLOCK + _SLIDE_TYPES_BLOCK + """
+
+def build_system_prompt_with_outline(
+    topic: str, num_slides: int, outline: str, enable_image: bool = False
+) -> str:
+    return (
+        "你是一个专业的演示文稿内容架构师。用户已确认了以下大纲结构，请严格按照该大纲生成幻灯片内容。"
+        + _OUTPUT_RULES_BLOCK
+        + _build_slide_types_block(enable_image)
+        + f"""
 ## 内容编排规则：
 - 第 1 页：必须是 cover，标题来自大纲第一行
 - 第 2 页：必须是 contents（目录），items 列出大纲中所有章节标题
@@ -70,3 +87,9 @@ SYSTEM_PROMPT_WITH_OUTLINE = """
 用户主题：{topic}
 生成总页数约：{num_slides}
 """
+    )
+
+
+# Keep backwards-compatible aliases (used by existing llm_service imports)
+SYSTEM_PROMPT = None          # replaced by build_system_prompt()
+SYSTEM_PROMPT_WITH_OUTLINE = None  # replaced by build_system_prompt_with_outline()

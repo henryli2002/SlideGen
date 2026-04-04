@@ -14,7 +14,10 @@
       "Bash(mkdir -p /Users/henryli/Desktop/Project/SlideGen/frontend/src/components/elements)",
       "Bash(git stash:*)",
       "Read(//Users/henryli/.claude/plugins/marketplaces/ui-ux-pro-max-skill/.claude/skills/ui-ux-pro-max/**)",
-      "Bash(python3 scripts/search.py \"AI presentation generator SaaS productivity tool minimal\" --design-system -p \"SlideGen AI\" -f markdown)"
+      "Bash(python3 scripts/search.py \"AI presentation generator SaaS productivity tool minimal\" --design-system -p \"SlideGen AI\" -f markdown)",
+      "Bash(python3:*)",
+      "Bash(find:*)",
+      "Bash(grep -o '\"type\"\\\\s*:\\\\s*\"[^\"]*\"' /Users/henryli/Desktop/Project/SlideGen/frontend/public/mocks/*.json)"
     ]
   }
 }
