@@ -15,6 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.schemas.slide_schema import AIPPTSlide
 from app.services import llm_service
+from app.services import image_service
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,43 @@ async def generate_outline(req: OutlineRequest):
     """
     outline_md = await llm_service.generate_outline(req.topic, req.language)
     return {"outline": outline_md}
+
+
+class AIWritingRequest(BaseModel):
+    content: str
+    command: str = "美化改写"
+
+
+@router.post("/api/ai_writing")
+async def ai_writing(req: AIWritingRequest):
+    """
+    流式 AI 文本处理（美化改写 / 扩写丰富 / 精简提炼）。
+    返回纯文本流，前端逐字追加到编辑区。
+    """
+    async def text_generator():
+        async for chunk in llm_service.ai_writing_stream(req.content, req.command):
+            yield chunk
+
+    return StreamingResponse(
+        text_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/api/search_images")
+async def search_images(
+    query: str = Query(..., description="搜索关键词"),
+    per_page: int = Query(default=20, ge=1, le=80),
+    page: int = Query(default=1, ge=1),
+    orientation: str = Query(default="all", description="图片方向: landscape | portrait | square | all"),
+):
+    """
+    图片搜索接口（基于 Pexels API）。
+    需在 .env 中配置 PEXELS_API_KEY。
+    """
+    result = await image_service.search_images(query, per_page, page, orientation)
+    return result
 
 
 @router.get("/api/generate_stream")
@@ -65,11 +103,19 @@ async def generate_stream(
                 async for slide_json in llm_service.stream_slides(topic, num_slides, outline):
                     try:
                         validated = AIPPTSlide.model_validate_json(slide_json)
+                        slide_data = validated.model_dump()
+
+                        # 将 imageKeyword 解析为真实图片 URL（Pexels → Gemini → 本地 → Picsum）
+                        if slide_data["type"] == "content" and isinstance(slide_data.get("data"), dict):
+                            keyword = slide_data["data"].pop("imageKeyword", None)
+                            if keyword:
+                                slide_data["data"]["imageUrl"] = await image_service.get_image_for_keyword(keyword)
+
                         payload = {
                             "status": "generating",
-                            "slide": validated.model_dump(),
+                            "slide": slide_data,
                             "index": page_index,
-                            "templateId": template_id,  # 回传模板 ID，前端据此选择模板
+                            "templateId": template_id,
                         }
                         yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
                         page_index += 1

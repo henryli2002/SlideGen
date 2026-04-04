@@ -70,6 +70,20 @@ MOCK_SLIDES = [
         }
     },
     {
+        "type": "table",
+        "data": {
+            "title": "主流 AI 大模型对比",
+            "headers": ["模型", "发布机构", "参数规模", "擅长领域"],
+            "rows": [
+                ["GPT-4o", "OpenAI", "未公开", "多模态、推理、编码"],
+                ["Claude 3.5", "Anthropic", "未公开", "长文本、安全对话"],
+                ["Gemini 2.0", "Google", "未公开", "多模态、代码、搜索"],
+                ["DeepSeek R1", "深度求索", "671B", "推理、数学、科学"],
+                ["Llama 3.1", "Meta", "405B", "开源、本地部署"]
+            ]
+        }
+    },
+    {
         "type": "transition",
         "data": {
             "title": "产业规模与趋势",
@@ -319,6 +333,77 @@ async def _generate_outline_gemini(topic: str, language: str) -> str:
         config=types.GenerateContentConfig(temperature=0.7),
     )
     return response.text or ""
+
+
+async def ai_writing_stream(content: str, command: str) -> AsyncGenerator[str, None]:
+    """
+    流式文本处理（美化改写 / 扩写丰富 / 精简提炼）。
+    直接 yield 纯文本片段（非 SSE 格式），前端直接拼接显示。
+    """
+    from app.prompts.writing_prompt import WRITING_COMMANDS, DEFAULT_COMMAND
+
+    system_prompt = WRITING_COMMANDS.get(command, WRITING_COMMANDS[DEFAULT_COMMAND])
+
+    if _is_mock_mode():
+        mock_texts = {
+            "美化改写": f"（美化示例）{content[:20]}……经过精心润色，语言更加生动优美。",
+            "扩写丰富": f"（扩写示例）{content[:20]}……本段内容可进一步展开：补充相关背景、列举典型案例，使论述更加完整充实。",
+            "精简提炼": content[:30] + "（精简示例）",
+        }
+        text = mock_texts.get(command, content)
+        for ch in text:
+            await asyncio.sleep(0.02)
+            yield ch
+        return
+
+    provider = os.getenv("LLM_PROVIDER", "openai").lower()
+
+    if provider == "gemini":
+        async for chunk in _ai_writing_gemini(system_prompt, content):
+            yield chunk
+    else:
+        async for chunk in _ai_writing_openai(system_prompt, content):
+            yield chunk
+
+
+async def _ai_writing_openai(system_prompt: str, content: str) -> AsyncGenerator[str, None]:
+    import openai
+
+    client = openai.AsyncOpenAI(
+        api_key=os.getenv("LLM_API_KEY"),
+        base_url=os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
+    )
+    response = await client.chat.completions.create(
+        model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content},
+        ],
+        stream=True,
+        temperature=0.7,
+    )
+    async for chunk in response:
+        delta = chunk.choices[0].delta.content or ""
+        if delta:
+            yield delta
+
+
+async def _ai_writing_gemini(system_prompt: str, content: str) -> AsyncGenerator[str, None]:
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+    prompt = f"{system_prompt}\n\n{content}"
+    async for chunk in await client.aio.models.generate_content_stream(
+        model=model,
+        contents=prompt,
+        config=types.GenerateContentConfig(temperature=0.7),
+    ):
+        delta = chunk.text or ""
+        if delta:
+            yield delta
 
 
 async def stream_slides(topic: str, num_slides: int, outline: str = "") -> AsyncGenerator[str, None]:

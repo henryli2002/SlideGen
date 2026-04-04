@@ -19,7 +19,7 @@ class AIPPTSlide(BaseModel):
     单页幻灯片（SSE 流式推送单元）。
     type 决定页面类型，data 的结构随 type 变化。
     """
-    type: Literal["cover", "contents", "transition", "content", "end"]
+    type: Literal["cover", "contents", "transition", "content", "table", "end"]
     data: Optional[dict] = None
 
 
