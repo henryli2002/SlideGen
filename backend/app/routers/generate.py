@@ -146,24 +146,37 @@ async def generate_stream(
         async with _semaphore:
             try:
                 page_index = 0
-                async for slide_json in llm_service.stream_slides(
+                generator = llm_service.stream_slides(
                     topic, num_slides, outline, enable_image, enable_search
-                ):
+                )
+                while True:
                     try:
-                        validated = AIPPTSlide.model_validate_json(slide_json)
-                        slide_data = validated.model_dump()
+                        slide_json = await asyncio.wait_for(generator.__anext__(), timeout=45.0)
+                        try:
+                            validated = AIPPTSlide.model_validate_json(slide_json)
+                            slide_data = validated.model_dump()
 
-                        payload = {
-                            "status": "generating",
-                            "slide": slide_data,
-                            "index": page_index,
-                            "templateId": template_id,
+                            payload = {
+                                "status": "generating",
+                                "slide": slide_data,
+                                "index": page_index,
+                                "templateId": template_id,
+                            }
+                            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                            page_index += 1
+                        except ValidationError as e:
+                            logger.warning(f"LLM 输出格式异常，跳过该页: {e}")
+                            continue
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        logger.warning(f"生成幻灯片 {page_index + 1} 超时 (45s)")
+                        error_payload = {
+                            "status": "error",
+                            "message": f"抱歉，生成第 {page_index + 1} 页时超时，请稍后重试或优化您的输入提示",
                         }
-                        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-                        page_index += 1
-                    except ValidationError as e:
-                        logger.warning(f"LLM 输出格式异常，跳过该页: {e}")
-                        continue
+                        yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
+                        return
 
                 # 所有页面推送完毕
                 done_payload = {
