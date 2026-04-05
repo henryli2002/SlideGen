@@ -12,6 +12,7 @@
 import os
 import base64
 import logging
+import random
 from urllib.parse import quote
 
 import httpx
@@ -20,6 +21,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+IMAGE_STYLE_MODIFIERS = [
+    "cinematic", "photorealistic", "hyperrealistic", "minimalist", "modern",
+    "corporate", "stock photo", "vibrant color", "dramatic lighting", "clean background"
+]
 
 PEXELS_API_BASE = "https://api.pexels.com/v1"
 
@@ -85,39 +91,58 @@ async def get_image_for_slide(prompt: str, width: int, height: int) -> dict:
 
     Returns {"url": ..., "source": ..., "failed": [...]}.
     """
+    logger.info(f"接到图片生成请求，原始 prompt: '{prompt}'")
     failed: list[str] = []
     # Extract a short keyword from the prompt for Pexels / Picsum seed
-    keyword = prompt.split(".")[0].split(":")[1].strip() if ":" in prompt else prompt.split(",")[0][:40]
+    keyword = prompt.split(":")[0].strip() if ":" in prompt else prompt.split(".")[0].split(",")[0].strip()
+    logger.info(f"提取关键词: '{keyword}'")
 
     # 1. Pexels — search with keyword, prefer matching orientation
     if _pexels_key():
         orientation = "landscape" if width >= height else "portrait"
+        logger.info(f"1. 尝试从 Pexels 搜索 (关键词: '{keyword}')...")
         url = await _pexels_search(keyword, orientation=orientation)
         if url:
+            logger.info(f"✅ Pexels 成功，URL: {url[:60]}...")
             return {"url": url, "source": "pexels", "failed": []}
+        logger.warning("Pexels 搜索无结果或失败")
         failed.append("Pexels")
 
-    # 2. Gemini — use rich prompt with aspect-ratio hint
+    # 2. Gemini — use rich prompt with aspect-ratio hint and random style
     if _gemini_key():
         ratio_hint = _aspect_ratio_hint(width, height)
-        full_prompt = f"{prompt} Aspect ratio: {ratio_hint}."
+        style = random.choice(IMAGE_STYLE_MODIFIERS)
+        full_prompt = f"{prompt}, in a {style} style. Aspect ratio: {ratio_hint}."
+        logger.info(f"2. 尝试用 Gemini 生成 (prompt: '{full_prompt}')...")
         url = await _gemini_generate_with_prompt(full_prompt)
         if url:
+            logger.info("✅ Gemini 生成成功")
             return {"url": url, "source": "gemini", "failed": failed}
+        logger.warning("Gemini 生成失败")
         failed.append("Gemini")
 
-    # 3. Local model
+    # 3. Local model - use random style
     if _local_image_url():
-        url = await _local_generate_sized(prompt, width, height)
+        style = random.choice(IMAGE_STYLE_MODIFIERS)
+        modified_prompt = f"{prompt}, {style}"
+        logger.info(f"3. 尝试用本地模型生成 (prompt: '{modified_prompt}')...")
+        url = await _local_generate_sized(modified_prompt, width, height)
         if url:
+            logger.info("✅ 本地模型生成成功")
             return {"url": url, "source": "local", "failed": failed}
+        logger.warning("本地模型生成失败")
         failed.append("本地模型")
 
-    # 4. Picsum — exact pixel dimensions
+    # 4. Picsum — exact pixel dimensions, with a random seed component
     from urllib.parse import quote
-    seed = quote(keyword.lower().replace(" ", "-"))
+    import time
+    # Add timestamp to seed to ensure different images even for same keyword
+    seed_str = f"{keyword.lower().replace(' ', '-')}-{time.time()}"
+    seed = quote(seed_str)
+    url = f"https://picsum.photos/seed/{seed}/{width}/{height}"
+    logger.info(f"4. 使用 Picsum 作为备用: {url}")
     source = "picsum_no_api" if not failed else "picsum"
-    return {"url": f"https://picsum.photos/seed/{seed}/{width}/{height}", "source": source, "failed": failed}
+    return {"url": url, "source": source, "failed": failed}
 
 
 def _aspect_ratio_hint(width: int, height: int) -> str:
@@ -170,9 +195,12 @@ async def search_images(
 # ─── 各级实现 ────────────────────────────────────────────────
 
 async def _pexels_search(keyword: str, orientation: str = "landscape") -> str:
-    """从 Pexels 搜索第一张图，返回 URL；失败返回空字符串。"""
+    """从 Pexels 搜索一组图片并随机返回一张，以增加多样性。"""
     try:
-        params: dict = {"query": keyword, "per_page": 1}
+        # Pexels 每页最多 80 张，取 15 张在速度和多样性之间平衡
+        # 增加随机页码，进一步提升多样性
+        page = random.randint(1, 10)  # 在前 10 页中随机选一页
+        params: dict = {"query": keyword, "per_page": 15, "page": page}
         if orientation != "all":
             params["orientation"] = orientation
         async with httpx.AsyncClient(timeout=8.0) as client:
@@ -184,7 +212,8 @@ async def _pexels_search(keyword: str, orientation: str = "landscape") -> str:
             resp.raise_for_status()
             photos = resp.json().get("photos", [])
             if photos:
-                return photos[0]["src"].get("large", photos[0]["src"]["medium"])
+                photo = random.choice(photos)
+                return photo["src"].get("large", photo["src"]["medium"])
     except Exception as e:
         logger.warning(f"Pexels 搜索失败: {e}")
     return ""

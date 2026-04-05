@@ -52,6 +52,7 @@ async def ai_writing(req: AIWritingRequest):
     流式 AI 文本处理（美化改写 / 扩写丰富 / 精简提炼）。
     返回纯文本流，前端逐字追加到编辑区。
     """
+
     async def text_generator():
         async for chunk in llm_service.ai_writing_stream(req.content, req.command):
             yield chunk
@@ -68,7 +69,9 @@ async def search_images(
     query: str = Query(..., description="搜索关键词"),
     per_page: int = Query(default=20, ge=1, le=80),
     page: int = Query(default=1, ge=1),
-    orientation: str = Query(default="all", description="图片方向: landscape | portrait | square | all"),
+    orientation: str = Query(
+        default="all", description="图片方向: landscape | portrait | square | all"
+    ),
 ):
     """
     图片搜索接口（基于 Pexels API）。
@@ -80,7 +83,10 @@ async def search_images(
 
 @router.get("/api/generate_image")
 async def generate_image(
-    keyword: str = Query(..., description="图片关键词（英文），触发 Pexels → Gemini → 本地模型 → Picsum 降级链"),
+    keyword: str = Query(
+        ...,
+        description="图片关键词（英文），触发 Pexels → Gemini → 本地模型 → Picsum 降级链",
+    ),
 ):
     """
     按关键词生成/搜索一张图片。
@@ -110,10 +116,19 @@ async def generate_slide_image(req: SlideImageRequest):
 @router.get("/api/generate_stream")
 async def generate_stream(
     topic: str = Query(..., max_length=200, description="演示文稿主题"),
-    num_slides: int = Query(default=12, ge=6, le=30, description="幻灯片页数（含封面，默认 12 页）"),
-    template_id: str = Query(default="default", description="模板 ID（预留：未来支持多模板）"),
-    outline: str = Query(default="", description="已确认的大纲 Markdown（可选，提供后按大纲生成）"),
-    enable_image: bool = Query(default=False, description="是否启用 AI 配图（含 imageKeyword 生成与图片解析）"),
+    num_slides: int = Query(
+        default=12, ge=6, le=30, description="幻灯片页数（含封面，默认 12 页）"
+    ),
+    template_id: str = Query(
+        default="default", description="模板 ID（预留：未来支持多模板）"
+    ),
+    outline: str = Query(
+        default="", description="已确认的大纲 Markdown（可选，提供后按大纲生成）"
+    ),
+    enable_image: bool = Query(
+        default=False, description="是否启用 AI 配图（含 imageKeyword 生成与图片解析）"
+    ),
+    enable_search: bool = Query(default=False, description="是否启用 RAG 检索增强"),
 ):
     """
     流式生成幻灯片内容（PPTist AIPPT 格式）。
@@ -126,11 +141,14 @@ async def generate_stream(
     - num_slides: 目标页数
     - template_id: 模板 ID（预留接口，未来支持多模板选择）
     """
+
     async def event_generator():
         async with _semaphore:
             try:
                 page_index = 0
-                async for slide_json in llm_service.stream_slides(topic, num_slides, outline, enable_image):
+                async for slide_json in llm_service.stream_slides(
+                    topic, num_slides, outline, enable_image, enable_search
+                ):
                     try:
                         validated = AIPPTSlide.model_validate_json(slide_json)
                         slide_data = validated.model_dump()
@@ -166,5 +184,5 @@ async def generate_stream(
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-        }
+        },
     )

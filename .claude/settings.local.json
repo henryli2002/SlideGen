@@ -17,7 +17,9 @@
       "Bash(python3 scripts/search.py \"AI presentation generator SaaS productivity tool minimal\" --design-system -p \"SlideGen AI\" -f markdown)",
       "Bash(python3:*)",
       "Bash(find:*)",
-      "Bash(grep -o '\"type\"\\\\s*:\\\\s*\"[^\"]*\"' /Users/henryli/Desktop/Project/SlideGen/frontend/public/mocks/*.json)"
+      "Bash(grep -o '\"type\"\\\\s*:\\\\s*\"[^\"]*\"' /Users/henryli/Desktop/Project/SlideGen/frontend/public/mocks/*.json)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -5,9 +5,10 @@ System Prompt for LLM — 输出 PPTist AIPPT 格式
 """
 
 _CONTENT_TYPE_BLOCK = """\
-### content（内容页 — 每个章节包含 1~3 个内容页）
-{{"type": "content", "data": {{"title": "页面标题(≤20字)", "items": [{{"title": "条目标题(≤15字)", "text": "条目描述(≤60字)"}}, ...]}}}}
-- 每页的 items 数量为 2~4 个"""
+### content（内容页）- 为了视觉多样性，请在以下三种布局中选择并轮换使用：
+- **布局 A (标准列表)**: {{"type": "content", "data": {{"title": "页面标题", "items": [{{"title": "条目标题1", "text": "条目描述1"}}, {{"title": "条目标题2", "text": "条目描述2"}}, {{"title": "条目标题3", "text": "条目描述3"}}]}}}}
+- **布局 B (双重点)**: {{"type": "content", "data": {{"title": "页面标题", "items": [{{"title": "核心点1", "text": "对核心点1的详细阐述，文字更丰富"}}, {{"title": "核心点2", "text": "对核心点2的详细阐述，文字更丰富"}}]}}}}
+- **布局 C (四象限)**: {{"type": "content", "data": {{"title": "页面标题", "items": [{{"title": "方面一", "text": "简短描述"}, {"title": "方面二", "text": "简短描述"}, {"title": "方面三", "text": "简短描述"}, {"title": "方面四", "text": "简短描述"}]}}}}"""
 
 
 def _build_slide_types_block(enable_image: bool = False) -> str:
@@ -44,7 +45,9 @@ _OUTPUT_RULES_BLOCK = """
 """
 
 
-def build_system_prompt(topic: str, num_slides: int, enable_image: bool = False) -> str:  # enable_image unused, kept for compat
+def build_system_prompt(
+    topic: str, num_slides: int, enable_image: bool = False
+) -> str:  # enable_image unused, kept for compat
     return (
         "你是一个专业的演示文稿内容架构师。用户会给你一个主题，你需要生成一组幻灯片内容。"
         + _OUTPUT_RULES_BLOCK
@@ -54,6 +57,7 @@ def build_system_prompt(topic: str, num_slides: int, enable_image: bool = False)
 - 第 1 页：必须是 cover
 - 第 2 页：必须是 contents（目录），items 列出所有章节标题
 - 中间：按章节组织；每章以 transition 开场，后跟 1~3 个 content 页；数据密集时可插入 1 个 table 页
+- **强制布局多样性**: 为确保视觉多样性，必须在`content`页的“布局A、B、C”之间轮换使用，禁止连续使用相同的布局。同时可穿插`table`页来进一步增加多样性。
 - 最后 1 页：必须是 end
 - 章节数量 3~6 个，根据主题复杂度调整
 - 内容专业、信息密度高，不要空洞套话
@@ -66,10 +70,24 @@ def build_system_prompt(topic: str, num_slides: int, enable_image: bool = False)
 
 
 def build_system_prompt_with_outline(
-    topic: str, num_slides: int, outline: str, enable_image: bool = False
+    topic: str,
+    num_slides: int,
+    outline: str,
+    enable_image: bool = False,
+    search_context: str = "",
 ) -> str:
+    context_block = (
+        f"""
+## 检索参考资料（RAG 结果）：
+以下是为您针对每个大纲节点召回的相关知识片段。请在生成每页内容时，务必参考并融合这些资料，使得内容详实、有据可查：
+{search_context}
+"""
+        if search_context
+        else ""
+    )
+
     return (
-        "你是一个专业的演示文稿内容架构师。用户已确认了以下大纲结构，请严格按照该大纲生成幻灯片内容。"
+        "你是一个专业的演示文稿内容架构师。用户已确认了以下大纲结构，请严格按照该大纲结合检索资料生成每一页幻灯片内容。"
         + _OUTPUT_RULES_BLOCK
         + _build_slide_types_block(enable_image)
         + f"""
@@ -77,19 +95,39 @@ def build_system_prompt_with_outline(
 - 第 1 页：必须是 cover，标题来自大纲第一行
 - 第 2 页：必须是 contents（目录），items 列出大纲中所有章节标题
 - 中间：严格按大纲章节顺序；每章以 transition 开场，后跟 1~3 个 content 页；数据密集时可插入 1 个 table 页
+- **强制布局多样性**: 为确保视觉多样性，必须在`content`页的“布局A、B、C”之间轮换使用，禁止连续使用相同的布局。同时可穿插`table`页来进一步增加多样性。
 - 最后 1 页：必须是 end
 - 每个 content 页的 items 应与大纲对应要点一一对应，可适当扩写但不得偏离主题
 
-## 已确认大纲：
+## 整体大纲：
+{outline}
+{context_block}
+## 单页 PPT 生成任务：
+用户主题：{topic}
+生成总页数约：{num_slides}
+请严格结合【整体大纲】的结构和【检索参考资料】的知识点，为以上主题输出 PPT 的单页流数据（即逐页返回的 JSON 数据）。
+"""
+    )
+
+
+def build_page_by_page_system_prompt(
+    topic: str, outline: str, enable_image: bool = False
+) -> str:
+    return (
+        "你是一个专业的演示文稿内容架构师。你将逐页生成 PPT 的 JSON 数据。"
+        + _OUTPUT_RULES_BLOCK
+        + _build_slide_types_block(enable_image)
+        + f"""
+## 整体大纲参考：
 {outline}
 
 ## 当前任务：
-用户主题：{topic}
-生成总页数约：{num_slides}
+全局主题：{topic}
+注意：请严格按照用户的当前指令，只输出指定的一页或几页 JSON 数据。不要输出多余的页。
 """
     )
 
 
 # Keep backwards-compatible aliases (used by existing llm_service imports)
-SYSTEM_PROMPT = None          # replaced by build_system_prompt()
+SYSTEM_PROMPT = None  # replaced by build_system_prompt()
 SYSTEM_PROMPT_WITH_OUTLINE = None  # replaced by build_system_prompt_with_outline()
