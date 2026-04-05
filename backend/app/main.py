@@ -6,6 +6,7 @@ PPTX/PDF 导出由 PPTist 前端内置功能处理，后端不再参与导出。
 """
 
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,12 +28,13 @@ app = FastAPI(
     version="3.0.0"
 )
 
-# 配置 CORS（开发环境允许 Vite 默认端口）
+# 从环境变量读取前端端口，并配置 CORS
+frontend_port = os.getenv("FRONTEND_PORT", "5173")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
+        f"http://localhost:{frontend_port}",
+        f"http://127.0.0.1:{frontend_port}",
     ],
     allow_credentials=True,
     allow_methods=["*"],
