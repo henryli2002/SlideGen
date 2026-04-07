@@ -13,6 +13,7 @@ interface ImageSearchPayload {
 interface AIPPTOutlinePayload {
   content: string
   language: string
+  enableSearch?: boolean
 }
 
 interface AIPPTPayload {
@@ -46,10 +47,11 @@ export default {
     })
   },
 
-  AIPPT_Outline({ content, language }: AIPPTOutlinePayload): Promise<any> {
+  AIPPT_Outline({ content, language, enableSearch = false }: AIPPTOutlinePayload): Promise<any> {
     return axios.post(`${API_BASE}/api/generate_outline`, {
       topic: content,
       language,
+      enable_search: enableSearch,
     })
   },
 

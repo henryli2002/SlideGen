@@ -189,7 +189,7 @@ const createOutline = async () => {
   step.value = 'outline'
 
   try {
-    const result = await api.AIPPT_Outline({ content: keyword.value, language: language.value })
+    const result = await api.AIPPT_Outline({ content: keyword.value, language: language.value, enableSearch: enableSearch.value })
     outline.value = result.outline || ''
   }
   catch (err) {

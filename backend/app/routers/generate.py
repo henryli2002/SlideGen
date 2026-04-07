@@ -28,6 +28,7 @@ _semaphore = asyncio.Semaphore(5)
 class OutlineRequest(BaseModel):
     topic: str
     language: str = "中文"
+    enable_search: bool = False
 
 
 @router.post("/api/generate_outline")
@@ -37,7 +38,9 @@ async def generate_outline(req: OutlineRequest):
 
     前端展示给用户确认/编辑后，再调用 generate_stream 生成完整幻灯片。
     """
-    outline_md = await llm_service.generate_outline(req.topic, req.language)
+    outline_md = await llm_service.generate_outline(
+        req.topic, req.language, req.enable_search
+    )
     return {"outline": outline_md}
 
 
@@ -151,7 +154,9 @@ async def generate_stream(
                 )
                 while True:
                     try:
-                        slide_json = await asyncio.wait_for(generator.__anext__(), timeout=45.0)
+                        slide_json = await asyncio.wait_for(
+                            generator.__anext__(), timeout=45.0
+                        )
                         try:
                             validated = AIPPTSlide.model_validate_json(slide_json)
                             slide_data = validated.model_dump()

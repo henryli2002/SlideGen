@@ -268,7 +268,9 @@ def _is_mock_mode() -> bool:
         return not key or key.startswith("sk-xxxxx")
 
 
-async def generate_outline(topic: str, language: str = "中文") -> str:
+async def generate_outline(
+    topic: str, language: str = "中文", enable_search: bool = False
+) -> str:
     """
     生成演示文稿大纲（Markdown 格式，非流式）。
 
@@ -284,53 +286,74 @@ async def generate_outline(topic: str, language: str = "中文") -> str:
         return MOCK_OUTLINE
 
     provider = os.getenv("LLM_PROVIDER", "openai").lower()
-    logger.info(f"调用 [{provider}] 生成大纲，主题：{topic}")
+    logger.info(
+        f"调用 [{provider}] 生成大纲，主题：{topic}，RAG增强：{'开' if enable_search else '关'}"
+    )
+
+    search_context = ""
+    if enable_search:
+        from app.services.search_service import fetch_search_results
+
+        queries = _build_outline_queries(topic)
+        search_context = await fetch_search_results(queries)
+        logger.info(f"RAG 召回上下文长度：{len(search_context)}")
 
     if provider == "gemini":
-        return await _generate_outline_gemini(topic, language)
+        return await _generate_outline_gemini(topic, language, search_context)
     else:
-        return await _generate_outline_openai(topic, language)
+        return await _generate_outline_openai(topic, language, search_context)
 
 
-async def _generate_outline_openai(topic: str, language: str) -> str:
+async def _generate_outline_openai(
+    topic: str, language: str, search_context: str = ""
+) -> str:
     """调用 OpenAI 兼容 API 生成大纲"""
     import openai
-    from app.prompts.outline_prompt import OUTLINE_PROMPT
+    from app.prompts.outline_prompt import build_outline_prompt
 
     client = openai.AsyncOpenAI(
         api_key=os.getenv("LLM_API_KEY"),
         base_url=os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
     )
 
+    content = build_outline_prompt(topic, language, search_context)
     response = await client.chat.completions.create(
         model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
-        messages=[
-            {
-                "role": "user",
-                "content": OUTLINE_PROMPT.format(topic=topic, language=language),
-            }
-        ],
+        messages=[{"role": "user", "content": content}],
         temperature=0.7,
         stream=False,
     )
     return response.choices[0].message.content or ""
 
 
-async def _generate_outline_gemini(topic: str, language: str) -> str:
+async def _generate_outline_gemini(
+    topic: str, language: str, search_context: str = ""
+) -> str:
     """调用 Google Gemini API 生成大纲"""
     from google import genai
     from google.genai import types
-    from app.prompts.outline_prompt import OUTLINE_PROMPT
+    from app.prompts.outline_prompt import build_outline_prompt
 
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
+    content = build_outline_prompt(topic, language, search_context)
     response = await client.aio.models.generate_content(
         model=model,
-        contents=OUTLINE_PROMPT.format(topic=topic, language=language),
+        contents=content,
         config=types.GenerateContentConfig(temperature=0.7),
     )
     return response.text or ""
+
+
+def _build_outline_queries(topic: str) -> list[str]:
+    """为大纲生成构建检索查询列表"""
+    return [
+        topic,
+        f"{topic} 背景",
+        f"{topic} 核心要点",
+        f"{topic} 应用场景",
+    ]
 
 
 async def ai_writing_stream(content: str, command: str) -> AsyncGenerator[str, None]:

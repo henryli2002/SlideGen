@@ -4,8 +4,8 @@ Outline Prompt — 生成演示文稿大纲（Markdown 格式）
 供用户在生成完整幻灯片前确认、编辑大纲结构。
 """
 
-OUTLINE_PROMPT = """
-你是专业的演示文稿内容架构师。用户给你一个PPT主题，请生成一份结构清晰的内容大纲。
+OUTLINE_PROMPT_BASE = """
+你是一个专业的演示文稿内容架构师。用户给你一个PPT主题，请生成一份结构清晰的内容大纲。
 
 ## 输出格式（纯 Markdown，绝对不得包含其他任何文字）：
 
@@ -33,3 +33,14 @@ OUTLINE_PROMPT = """
 ## 当前任务：
 用户主题：{topic}
 """
+
+
+def build_outline_prompt(topic: str, language: str, search_context: str = "") -> str:
+    context_block = ""
+    if search_context:
+        context_block = f"""
+## 检索参考资料（RAG 结果）：
+以下是为您召回的相关知识片段，请结合这些资料生成更准确、更专业的大纲：
+{search_context}
+"""
+    return OUTLINE_PROMPT_BASE.format(topic=topic, language=language) + context_block
